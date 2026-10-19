@@ -1,0 +1,2771 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neko-Block: Petualangan Tanpa Istana</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chess.js for Full 8x8 Chess legal moves & AI -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <!-- Google Fonts: Retro Pixel & Clean UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        :root {
+            --pixel-font: 'Press Start 2P', monospace;
+            --ui-font: 'Fredoka', sans-serif;
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #12101b;
+            font-family: var(--ui-font);
+            overflow: hidden;
+            touch-action: none;
+        }
+        .pixel-font {
+            font-family: var(--pixel-font);
+        }
+        /* Retro Arcade Frame & Scanlines */
+        .pixel-border {
+            border: 4px solid #1e1b2e;
+            box-shadow: 0 6px 0 #1e1b2e, inset 0 -4px 0 rgba(0,0,0,0.2);
+        }
+        .pixel-btn {
+            border: 3px solid #1e1b2e;
+            box-shadow: 0 5px 0 #1e1b2e;
+            transition: transform 0.08s, box-shadow 0.08s;
+        }
+        .pixel-btn:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #1e1b2e;
+        }
+        .pixel-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* Chess Board Styling */
+        .chess-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            max-width: 360px;
+            border: 4px solid #2d1b0e;
+            box-shadow: 0 8px 0 #1a0f07;
+            margin: 0 auto;
+        }
+        .chess-sq {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(1.3rem, 5vw, 2.1rem);
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.15s;
+        }
+        .sq-light { background-color: #f3e5ab; }
+        .sq-dark { background-color: #b58863; }
+        .sq-selected { background-color: #fde047 !important; }
+        .sq-lastmove { background-color: rgba(163, 230, 53, 0.55) !important; }
+        .sq-valid::after {
+            content: '';
+            width: 32%;
+            height: 32%;
+            background-color: rgba(22, 163, 74, 0.65);
+            border-radius: 50%;
+            position: absolute;
+            pointer-events: none;
+        }
+        .sq-capture::after {
+            content: '';
+            width: 82%;
+            height: 82%;
+            border: 4px solid rgba(220, 38, 38, 0.75);
+            border-radius: 50%;
+            position: absolute;
+            pointer-events: none;
+        }
+        .piece-w {
+            color: #ffffff;
+            text-shadow: 0 2px 0 #1e293b, 1px 0 0 #1e293b, -1px 0 0 #1e293b, 0 -1px 0 #1e293b;
+        }
+        .piece-b {
+            color: #1e1b4b;
+            text-shadow: 0 2px 0 #94a3b8, 1px 0 0 #fff, -1px 0 0 #fff;
+        }
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+            animation: floatSlow 2.2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between bg-slate-950 text-white select-none overflow-hidden">
+
+    <!-- TOP HUD & DEBUG BAR -->
+    <header class="w-full bg-slate-900/95 border-b-4 border-slate-800 px-3 py-2 flex flex-wrap items-center justify-between gap-2 z-20">
+        <!-- Left Stats -->
+        <div class="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <div class="flex items-center gap-1.5 bg-pink-500/20 border-2 border-pink-400 rounded-xl px-2.5 py-1">
+                <span class="text-lg">🐱</span>
+                <span class="pixel-font text-[10px] sm:text-xs text-pink-300" id="hud-lives">❤️❤️❤️</span>
+            </div>
+            <div class="flex items-center gap-1.5 bg-amber-500/20 border-2 border-amber-400 rounded-xl px-2.5 py-1">
+                <span class="text-sm">🪙</span>
+                <span class="pixel-font text-[10px] sm:text-xs text-amber-300" id="hud-coins">0</span>
+            </div>
+            <div class="flex items-center gap-1.5 bg-cyan-500/20 border-2 border-cyan-400 rounded-xl px-2.5 py-1">
+                <span class="text-sm">🏃</span>
+                <span class="pixel-font text-[10px] sm:text-xs text-cyan-300"><span id="hud-dist">0</span>m</span>
+            </div>
+            <div class="flex items-center gap-1.5 bg-emerald-500/20 border-2 border-emerald-400 rounded-xl px-2.5 py-1">
+                <span class="text-sm">🏆</span>
+                <span class="pixel-font text-[10px] sm:text-xs text-emerald-300"><span id="hud-challenges">0</span> Misi</span>
+            </div>
+        </div>
+
+        <!-- Right Controls: Audio & Quick Challenge Trigger (For testing or instant fun) -->
+        <div class="flex items-center gap-2">
+            <select id="test-challenge-select" class="bg-slate-800 text-amber-300 border-2 border-amber-400 rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer max-w-[180px] sm:max-w-xs">
+                <option value="">🎲 Tes / Pilih Challenge...</option>
+                <option value="ROMANTIC_MSG">💌 0. Pesan Romantis Spesial (WA)</option>
+                <option value="CHESS_PUZZLE">♟️ 1. Puzzle Catur (Mate in 1)</option>
+                <option value="CHESS_FULL">👑 2. Full Catur 8x8 vs Bot</option>
+                <option value="TICTACTOE">❌ 3. Tic-Tac-Toe vs Bot Licik</option>
+                <option value="RPS">✌️ 4. Suit Jepang (Best of 3)</option>
+                <option value="REVERSE_WORD">🔤 5. Ketik Kata Terbalik</option>
+                <option value="COLOR_MATH">🧮 6. Hitung Cepat Matematika</option>
+                <option value="MEMORY_MATCH">🧠 7. Memory Card Match (4x2)</option>
+                <option value="WHACK_SLIME">🔨 8. Gebuk Slime (Whack-a-Slime)</option>
+                <option value="SIMON_SAYS">🎨 9. Simon Says (Urutan Warna)</option>
+                <option value="TIMING_BAR">🎯 10. Timing Bar (Zona Hijau)</option>
+                <option value="MINESWEEPER">💣 11. Minesweeper Mini (4x4)</option>
+                <option value="STROOP_TEST">🌈 12. Stroop Test (Warna Teks)</option>
+                <option value="MASH_BALLOON">🎈 13. Pompa Balon (Spam Klik)</option>
+                <option value="FLAPPY_NEKO">🐍 14. Flappy Neko Mini (Lewati 5 Pipa)</option>
+                <option value="NUMBER_ORDER">🔢 15. Urutkan Angka Cepat (1-6)</option>
+                <option value="WHATSAPP">📱 16. Real-Life Challenge (WA)</option>
+            </select>
+            <button id="btn-trigger-test" class="pixel-btn bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs px-2.5 py-1 rounded-lg">
+                Buka!
+            </button>
+            <button id="btn-sound" class="pixel-btn bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-2.5 py-1 rounded-lg" title="Suara Efek">
+                <i class="fas fa-volume-up" id="sound-icon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN GAME CANVAS AREA -->
+    <main class="relative flex-1 w-full h-full overflow-hidden bg-sky-300">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Floating Notification Toast -->
+        <div id="game-toast" class="pointer-events-none fixed top-16 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 opacity-0 -translate-y-4">
+            <div class="bg-slate-900/95 border-4 border-amber-400 text-amber-300 px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2">
+                <span id="toast-icon" class="text-xl">✨</span>
+                <span id="toast-text" class="font-bold text-sm sm:text-base">Sundul Balok [?] untuk Challenge!</span>
+            </div>
+        </div>
+
+        <!-- Milestone Sky Banner -->
+        <div class="pointer-events-none absolute top-3 left-3 bg-slate-900/60 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/20 text-xs text-white/90 hidden sm:block">
+            🌤️ Zona: <span id="sky-phase-label" class="font-bold text-amber-300">Pagi Ceria</span> | 🏰 Jarak ke Istana: <span class="text-pink-300 font-bold">∞ (Tidak Ada!)</span>
+        </div>
+
+        <!-- MOBILE / ON-SCREEN TOUCH CONTROLS -->
+        <div class="absolute bottom-4 inset-x-4 flex justify-between items-end pointer-events-none z-10">
+            <!-- D-Pad Left/Right -->
+            <div class="flex gap-3 pointer-events-auto">
+                <button id="btn-left" class="pixel-btn w-14 h-14 sm:w-16 sm:h-16 bg-slate-800/85 active:bg-pink-500 text-white rounded-2xl flex items-center justify-center text-2xl backdrop-blur-sm">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <button id="btn-right" class="pixel-btn w-14 h-14 sm:w-16 sm:h-16 bg-slate-800/85 active:bg-pink-500 text-white rounded-2xl flex items-center justify-center text-2xl backdrop-blur-sm">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+
+            <!-- Center Hint -->
+            <div class="hidden md:flex flex-col items-center bg-slate-900/75 px-4 py-1.5 rounded-xl border border-slate-700 text-xs text-slate-300">
+                <span>Kontrol Keyboard: <b>A / D</b> atau <b>Panah Kiri/Kanan</b> untuk Jalan | <b>W / Spasi</b> untuk Loncat & Sundul Balok <b>[?]</b></span>
+            </div>
+
+            <!-- Jump Button -->
+            <div class="pointer-events-auto">
+                <button id="btn-jump" class="pixel-btn w-16 h-16 sm:w-20 sm:h-20 bg-pink-500 active:bg-pink-400 text-white rounded-2xl flex flex-col items-center justify-center shadow-lg">
+                    <i class="fas fa-arrow-up text-2xl"></i>
+                    <span class="pixel-font text-[8px] mt-1">LONCAT</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- INTRO / START OVERLAY MODAL -->
+    <div id="intro-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-4 border-pink-400 rounded-3xl max-w-lg w-full p-6 text-center shadow-2xl relative overflow-hidden">
+            <div class="inline-block bg-pink-500/20 border-2 border-pink-400 px-4 py-1.5 rounded-full text-pink-300 text-xs font-bold mb-3 animate-float">
+                🐾 ENDLESS PIXEL PLATFORMER 🐾
+            </div>
+            <h1 class="pixel-font text-xl sm:text-2xl text-amber-300 mb-3 leading-relaxed">
+                NEKO-BLOCK:<br><span class="text-pink-400 text-sm sm:text-base">Mencari Istana Palsu</span>
+            </h1>
+            <p class="text-slate-300 text-sm sm:text-base mb-4 leading-relaxed">
+                Kendalikan <b>Kucing Kotak</b> di dunia tanpa ujung! Tidak ada istana atau putri di sini. Setiap kali kamu menyundul <b>Batu Bata Misterius [?]</b>, kamu wajib menyelesaikan <b>Challenge Random</b>:
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left mb-6 text-xs">
+                <div class="bg-slate-800/90 border-2 border-amber-400/60 p-3 rounded-xl">
+                    <div class="text-lg mb-1">♟️ <b>Catur & Strategi</b></div>
+                    <p class="text-slate-400">Puzzle Skakmat, Full Catur 8x8, Minesweeper, & Tic-Tac-Toe lawan Bot!</p>
+                </div>
+                <div class="bg-slate-800/90 border-2 border-cyan-400/60 p-3 rounded-xl">
+                    <div class="text-lg mb-1">🎮 <b>15+ In-Game Arcade</b></div>
+                    <p class="text-slate-400">Flappy Neko, Gebuk Slime, Memory Match, Stroop Test, Timing Bar, Pompa Balon, dll!</p>
+                </div>
+                <div class="bg-slate-800/90 border-2 border-emerald-400/60 p-3 rounded-xl">
+                    <div class="text-lg mb-1">📱 <b>Real-Life WA</b></div>
+                    <p class="text-slate-400">Bonus misi dunia nyata ke WhatsApp <b>6289674037725</b>!</p>
+                </div>
+            </div>
+            <button id="btn-start-game" class="pixel-btn w-full bg-gradient-to-r from-pink-500 to-amber-500 hover:from-pink-400 hover:to-amber-400 text-slate-950 font-extrabold py-3.5 rounded-2xl text-base sm:text-lg tracking-wide">
+                🚀 MULAI PETUALANGAN MEONG!
+            </button>
+        </div>
+    </div>
+
+    <!-- MYSTERY BLOCK (?) CHALLENGE MODAL -->
+    <div id="challenge-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-40 hidden items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-slate-900 border-4 border-amber-400 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl my-auto relative">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b-2 border-slate-800 pb-3 mb-4">
+                <div class="flex items-center gap-2.5">
+                    <div id="ch-badge-icon" class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-xl font-bold shadow">
+                        ❓
+                    </div>
+                    <div>
+                        <span id="ch-category-tag" class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-400/40">
+                            BALOK MISTERIUS
+                        </span>
+                        <h2 id="ch-title" class="text-lg sm:text-xl font-extrabold text-white mt-0.5">
+                            Tantangan Muncul!
+                        </h2>
+                    </div>
+                </div>
+                <!-- Switch Random Challenge Button (if user wants to reroll) -->
+                <button id="btn-reroll-challenge" class="pixel-btn bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-3 py-1.5 rounded-xl flex items-center gap-1" title="Ganti Challenge Lain">
+                    <i class="fas fa-dice"></i> Ganti
+                </button>
+            </div>
+
+            <!-- Dynamic Challenge Body -->
+            <div id="ch-body" class="min-h-[260px] flex flex-col justify-center">
+                <!-- Populated dynamically by JS -->
+            </div>
+
+            <!-- Status / Feedback Bar -->
+            <div id="ch-feedback" class="mt-4 hidden p-3 rounded-xl text-center font-bold text-sm"></div>
+        </div>
+    </div>
+
+    <script>
+    /********************************************************************
+     * 1. WEB AUDIO SYNTHESIZER (Retro 8-Bit Sound Effects)
+     ********************************************************************/
+    class SoundFX {
+        constructor() {
+            this.ctx = null;
+            this.enabled = true;
+        }
+        init() {
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) this.ctx = new AudioCtx();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        }
+        playTone(freq, type, duration, delay = 0, vol = 0.12) {
+            if (!this.enabled) return;
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime + delay;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(vol, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + duration);
+        }
+        jump() {
+            this.playTone(320, 'square', 0.08, 0, 0.1);
+            this.playTone(480, 'square', 0.12, 0.06, 0.1);
+        }
+        coin() {
+            this.playTone(987.77, 'square', 0.07, 0, 0.1);
+            this.playTone(1318.51, 'square', 0.22, 0.07, 0.1);
+        }
+        stomp() {
+            this.playTone(220, 'triangle', 0.09, 0, 0.15);
+            this.playTone(440, 'square', 0.12, 0.05, 0.1);
+        }
+        mysteryHit() {
+            const notes = [392, 523.25, 659.25, 783.99, 1046.5];
+            notes.forEach((n, i) => this.playTone(n, 'square', 0.09, i * 0.055, 0.11));
+        }
+        winChallenge() {
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            notes.forEach((n, i) => this.playTone(n, 'triangle', 0.14, i * 0.09, 0.15));
+        }
+        hurt() {
+            this.playTone(190, 'sawtooth', 0.15, 0, 0.14);
+            this.playTone(130, 'sawtooth', 0.25, 0.12, 0.14);
+        }
+        click() {
+            this.playTone(600, 'sine', 0.05, 0, 0.08);
+        }
+    }
+    const sfx = new SoundFX();
+
+    /********************************************************************
+     * 2. ENDLESS PLATFORMER ENGINE & KUCING KOTAK PROTAGONIST
+     ********************************************************************/
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const TILE = 40;
+    const GRAVITY = 0.62;
+
+    const gameState = {
+        paused: true,
+        inChallenge: false,
+        coins: 0,
+        distance: 0,
+        challengesDone: 0,
+        lives: 3,
+        cameraX: 0,
+        generatedUntilX: 0,
+        activeMysteryBlock: null,
+        particles: [],
+        floatingTexts: [],
+        clouds: [],
+        hills: [],
+        platforms: [], // {x, y, w, h, type: 'ground'|'brick'|'mystery'|'used', bounceY: 0}
+        coinsList: [], // {x, y, r, collected, bobOffset}
+        enemies: [],   // {x, y, w, h, vx, minX, maxX, alive, type}
+        signs: []      // {x, y, text}
+    };
+
+    // Cute "Kucing Kotak" (Blocky Cat) Protagonist
+    const cat = {
+        x: 120,
+        y: 200,
+        w: 36,
+        h: 36,
+        vx: 0,
+        vy: 0,
+        speed: 4.8,
+        jumpForce: -13.2,
+        grounded: false,
+        facing: 1, // 1 right, -1 left
+        scaleX: 1,
+        scaleY: 1,
+        tailAngle: 0,
+        invincibleTimer: 0,
+        lastSafeX: 120,
+        lastSafeY: 180
+    };
+
+    const keys = { left: false, right: false, jump: false };
+
+    const FUNNY_SIGNS = [
+        "🏰 Istana masih 999.999 km lagi!",
+        "🐾 Sundul balok [?] buat kejutan!",
+        "😼 Kucing Kotak pantang menyerah!",
+        "♟️ Awas tiba-tiba diajak main catur!",
+        "📱 Siapkan HP buat challenge WA!",
+        "👑 Putri sudah pindah kosan, lanjut jalan!",
+        "🥛 Jangan lupa minum air putih hari ini!"
+    ];
+
+    function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function getGroundY() {
+        return Math.max(320, canvas.height - 96);
+    }
+
+    // Initialize Parallax Clouds & Hills
+    function initScenery() {
+        gameState.clouds = [];
+        for (let i = 0; i < 12; i++) {
+            gameState.clouds.push({
+                x: i * 220 + Math.random() * 100,
+                y: 40 + Math.random() * 120,
+                w: 64 + Math.random() * 48,
+                speed: 0.2 + Math.random() * 0.3
+            });
+        }
+    }
+
+    // Procedural Chunk Generator (Endless!)
+    function generateWorldChunk() {
+        const gY = getGroundY();
+        const startX = gameState.generatedUntilX;
+
+        // First safe starting zone
+        if (startX === 0) {
+            gameState.platforms.push({
+                x: -100, y: gY, w: 750, h: 300, type: 'ground', bounceY: 0
+            });
+            // Starter Mystery Blocks right in front of the player
+            gameState.platforms.push({
+                x: 280, y: gY - 115, w: TILE, h: TILE, type: 'brick', bounceY: 0
+            });
+            gameState.platforms.push({
+                x: 320, y: gY - 115, w: TILE, h: TILE, type: 'mystery', bounceY: 0
+            });
+            gameState.platforms.push({
+                x: 360, y: gY - 115, w: TILE, h: TILE, type: 'brick', bounceY: 0
+            });
+            gameState.platforms.push({
+                x: 500, y: gY - 125, w: TILE, h: TILE, type: 'mystery', bounceY: 0
+            });
+            gameState.signs.push({
+                x: 190, y: gY, text: "😼 Sundul Balok [?] di atas!"
+            });
+            gameState.generatedUntilX = 650;
+            return;
+        }
+
+        // Subsequent procedural chunks
+        const gapWidth = Math.random() < 0.45 ? (75 + Math.floor(Math.random() * 55)) : 0;
+        const chunkX = startX + gapWidth;
+        const chunkW = 360 + Math.floor(Math.random() * 360);
+        const elevation = Math.random() < 0.3 ? -25 : 0;
+        const floorY = gY + elevation;
+
+        // Ground Platform
+        gameState.platforms.push({
+            x: chunkX, y: floorY, w: chunkW, h: 350, type: 'ground', bounceY: 0
+        });
+
+        // Add a stepping platform if gap is wide
+        if (gapWidth > 100) {
+            gameState.platforms.push({
+                x: startX + gapWidth / 2 - 20,
+                y: floorY - 50,
+                w: TILE,
+                h: 20,
+                type: 'brick',
+                bounceY: 0
+            });
+        }
+
+        // Overhead Brick & Mystery [?] Block Formations
+        const numStructures = 1 + Math.floor(Math.random() * 2);
+        for (let s = 0; s < numStructures; s++) {
+            const structX = chunkX + 60 + s * 190;
+            if (structX + 160 < chunkX + chunkW) {
+                const blockY = floorY - (108 + Math.floor(Math.random() * 25));
+                const len = 2 + Math.floor(Math.random() * 3);
+                for (let b = 0; b < len; b++) {
+                    const isMystery = (b === Math.floor(len / 2)) || Math.random() < 0.45;
+                    gameState.platforms.push({
+                        x: structX + b * TILE,
+                        y: blockY,
+                        w: TILE,
+                        h: TILE,
+                        type: isMystery ? 'mystery' : 'brick',
+                        bounceY: 0
+                    });
+                    // Coins above blocks sometimes
+                    if (Math.random() < 0.5) {
+                        gameState.coinsList.push({
+                            x: structX + b * TILE + TILE / 2,
+                            y: blockY - 34,
+                            r: 11,
+                            collected: false,
+                            bobOffset: Math.random() * Math.PI * 2
+                        });
+                    }
+                }
+
+                // Second tier high mystery block occasionally
+                if (Math.random() < 0.35) {
+                    gameState.platforms.push({
+                        x: structX + TILE,
+                        y: blockY - 105,
+                        w: TILE,
+                        h: TILE,
+                        type: 'mystery',
+                        bounceY: 0
+                    });
+                }
+            }
+        }
+
+        // Coin Arcs on Ground
+        if (Math.random() < 0.7) {
+            const coinStartX = chunkX + 40;
+            for (let c = 0; c < 4; c++) {
+                gameState.coinsList.push({
+                    x: coinStartX + c * 32,
+                    y: floorY - 36 - Math.sin((c / 3) * Math.PI) * 30,
+                    r: 11,
+                    collected: false,
+                    bobOffset: c * 0.5
+                });
+            }
+        }
+
+        // Cute Slime / Mushroom Enemies
+        if (chunkW > 320 && Math.random() < 0.75) {
+            const ex = chunkX + 140 + Math.random() * (chunkW - 220);
+            gameState.enemies.push({
+                x: ex,
+                y: floorY - 30,
+                w: 32,
+                h: 30,
+                vx: (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 0.8),
+                minX: chunkX + 24,
+                maxX: chunkX + chunkW - 56,
+                alive: true,
+                type: Math.random() < 0.5 ? 'slime' : 'shroom'
+            });
+        }
+
+        // Funny Milestone Sign
+        if (Math.random() < 0.45) {
+            const signText = FUNNY_SIGNS[Math.floor(Math.random() * FUNNY_SIGNS.length)];
+            gameState.signs.push({
+                x: chunkX + chunkW - 90,
+                y: floorY,
+                text: signText
+            });
+        }
+
+        gameState.generatedUntilX = chunkX + chunkW;
+
+        // Cleanup old objects far behind camera
+        const cullX = gameState.cameraX - 400;
+        gameState.platforms = gameState.platforms.filter(p => p.x + p.w > cullX);
+        gameState.coinsList = gameState.coinsList.filter(c => c.x > cullX && !c.collected);
+        gameState.enemies = gameState.enemies.filter(e => e.x + e.w > cullX && e.alive);
+        gameState.signs = gameState.signs.filter(s => s.x > cullX);
+    }
+
+    function spawnParticles(x, y, color, count = 10) {
+        for (let i = 0; i < count; i++) {
+            gameState.particles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 7,
+                vy: (Math.random() - 0.8) * 7,
+                size: 4 + Math.random() * 5,
+                color,
+                life: 25 + Math.random() * 15
+            });
+        }
+    }
+
+    function spawnFloatingText(x, y, text, color = '#fde047') {
+        gameState.floatingTexts.push({ x, y, text, color, life: 45 });
+    }
+
+    function showToast(text, icon = '✨') {
+        const toast = document.getElementById('game-toast');
+        document.getElementById('toast-text').textContent = text;
+        document.getElementById('toast-icon').textContent = icon;
+        toast.classList.remove('opacity-0', '-translate-y-4');
+        toast.classList.add('opacity-100', 'translate-y-0');
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+            toast.classList.add('opacity-0', '-translate-y-4');
+            toast.classList.remove('opacity-100', 'translate-y-0');
+        }, 2800);
+    }
+
+    function updateHUD() {
+        document.getElementById('hud-coins').textContent = gameState.coins;
+        document.getElementById('hud-dist').textContent = gameState.distance;
+        document.getElementById('hud-challenges').textContent = gameState.challengesDone;
+        document.getElementById('hud-lives').textContent = '❤️'.repeat(Math.max(1, gameState.lives));
+    }
+
+    /********************************************************************
+     * 3. PLATFORMER PHYSICS & COLLISION LOOP
+     ********************************************************************/
+    function updatePlatformer() {
+        if (gameState.paused || gameState.inChallenge) return;
+
+        // Ensure world ahead is generated
+        while (gameState.generatedUntilX < gameState.cameraX + canvas.width + 500) {
+            generateWorldChunk();
+        }
+
+        // Horizontal Movement
+        if (keys.left) {
+            cat.vx = -cat.speed;
+            cat.facing = -1;
+        } else if (keys.right) {
+            cat.vx = cat.speed;
+            cat.facing = 1;
+        } else {
+            cat.vx *= 0.78;
+            if (Math.abs(cat.vx) < 0.1) cat.vx = 0;
+        }
+
+        // Jump
+        if (keys.jump && cat.grounded) {
+            cat.vy = cat.jumpForce;
+            cat.grounded = false;
+            cat.scaleX = 0.82;
+            cat.scaleY = 1.22;
+            sfx.jump();
+            spawnParticles(cat.x + cat.w / 2, cat.y + cat.h, '#f8fafc', 6);
+        }
+
+        // Apply Gravity
+        cat.vy += GRAVITY;
+        if (cat.vy > 15) cat.vy = 15;
+
+        // Move X & Resolve X Collisions
+        cat.x += cat.vx;
+        if (cat.x < gameState.cameraX + 16) {
+            cat.x = gameState.cameraX + 16; // Prevent walking behind left screen edge
+        }
+
+        for (const p of gameState.platforms) {
+            if (rectOverlap(cat.x, cat.y, cat.w, cat.h, p.x, p.y, p.w, p.h)) {
+                if (cat.vx > 0) cat.x = p.x - cat.w;
+                else if (cat.vx < 0) cat.x = p.x + p.w;
+            }
+        }
+
+        // Move Y & Resolve Y Collisions
+        cat.y += cat.vy;
+        cat.grounded = false;
+
+        for (const p of gameState.platforms) {
+            if (rectOverlap(cat.x, cat.y, cat.w, cat.h, p.x, p.y, p.w, p.h)) {
+                if (cat.vy > 0) {
+                    // Landing on top of a block/ground
+                    cat.y = p.y - cat.h;
+                    if (cat.vy > 4) {
+                        cat.scaleX = 1.18;
+                        cat.scaleY = 0.84;
+                    }
+                    cat.vy = 0;
+                    cat.grounded = true;
+                    if (p.type === 'ground') {
+                        cat.lastSafeX = cat.x;
+                        cat.lastSafeY = cat.y - 10;
+                    }
+                } else if (cat.vy < 0) {
+                    // HEADBUTTING A BLOCK FROM BELOW!
+                    cat.y = p.y + p.h;
+                    cat.vy = 2.2;
+                    p.bounceY = -8;
+
+                    if (p.type === 'mystery') {
+                        p.type = 'used';
+                        sfx.mysteryHit();
+                        spawnParticles(p.x + p.w / 2, p.y, '#fde047', 16);
+                        spawnFloatingText(p.x, p.y - 12, "CHALLENGE!", "#f472b6");
+                        triggerMysteryChallenge(p);
+                        return;
+                    } else if (p.type === 'brick') {
+                        sfx.stomp();
+                        spawnParticles(p.x + p.w / 2, p.y + p.h, '#d97706', 6);
+                    } else {
+                        sfx.click();
+                    }
+                }
+            }
+        }
+
+        // Recover squish & stretch smoothly
+        cat.scaleX += (1 - cat.scaleX) * 0.18;
+        cat.scaleY += (1 - cat.scaleY) * 0.18;
+        cat.tailAngle += Math.abs(cat.vx) > 0.5 ? 0.25 : 0.07;
+        if (cat.invincibleTimer > 0) cat.invincibleTimer--;
+
+        // Camera smoothly follows Kucing Kotak forward
+        const targetCamX = cat.x - canvas.width * 0.28;
+        if (targetCamX > gameState.cameraX) {
+            gameState.cameraX += (targetCamX - gameState.cameraX) * 0.12;
+        }
+
+        // Update Distance Meter
+        const newDist = Math.max(gameState.distance, Math.floor((cat.x - 120) / 25));
+        if (newDist !== gameState.distance) {
+            gameState.distance = newDist;
+            updateHUD();
+        }
+
+        // Collect Coins
+        for (const c of gameState.coinsList) {
+            if (!c.collected) {
+                const dx = (cat.x + cat.w / 2) - c.x;
+                const dy = (cat.y + cat.h / 2) - c.y;
+                if (Math.hypot(dx, dy) < c.r + cat.w * 0.45) {
+                    c.collected = true;
+                    gameState.coins++;
+                    sfx.coin();
+                    spawnParticles(c.x, c.y, '#facc15', 8);
+                    spawnFloatingText(c.x, c.y - 10, "+1 🪙", "#fde047");
+                    updateHUD();
+                }
+            }
+        }
+
+        // Update & Collide with Enemies
+        for (const e of gameState.enemies) {
+            if (!e.alive) continue;
+            e.x += e.vx;
+            if (e.x < e.minX || e.x > e.maxX) e.vx *= -1;
+
+            if (rectOverlap(cat.x, cat.y, cat.w, cat.h, e.x, e.y, e.w, e.h)) {
+                // Stomp from above
+                if (cat.vy > 0 && cat.y + cat.h - cat.vy <= e.y + 14) {
+                    e.alive = false;
+                    cat.vy = -10;
+                    gameState.coins += 3;
+                    sfx.stomp();
+                    spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#a855f7', 12);
+                    spawnFloatingText(e.x, e.y, "+3 🪙 Meong!", "#a3e635");
+                    updateHUD();
+                } else if (cat.invincibleTimer <= 0) {
+                    // Hurt
+                    sfx.hurt();
+                    cat.invincibleTimer = 60;
+                    cat.vy = -8;
+                    gameState.lives = Math.max(1, gameState.lives - 1);
+                    spawnFloatingText(cat.x, cat.y - 15, "Aduh Meong!", "#f87171");
+                    updateHUD();
+                }
+            }
+        }
+
+        // Fall into Pit -> Instant Respawn at last safe ground
+        if (cat.y > canvas.height + 120) {
+            sfx.hurt();
+            cat.x = Math.max(gameState.cameraX + 60, cat.lastSafeX);
+            cat.y = 80;
+            cat.vx = 0;
+            cat.vy = 0;
+            cat.invincibleTimer = 60;
+            spawnFloatingText(cat.x, 120, "Respawn Meong! 🐾", "#38bdf8");
+        }
+
+        // Update Block Bounce Animations
+        for (const p of gameState.platforms) {
+            if (p.bounceY < 0) {
+                p.bounceY += 1.5;
+                if (p.bounceY > 0) p.bounceY = 0;
+            }
+        }
+
+        // Update Particles & Floating Texts
+        gameState.particles.forEach(pt => {
+            pt.x += pt.vx;
+            pt.y += pt.vy;
+            pt.vy += 0.25;
+            pt.life--;
+        });
+        gameState.particles = gameState.particles.filter(pt => pt.life > 0);
+
+        gameState.floatingTexts.forEach(ft => {
+            ft.y -= 1.1;
+            ft.life--;
+        });
+        gameState.floatingTexts = gameState.floatingTexts.filter(ft => ft.life > 0);
+    }
+
+    function rectOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
+        return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+    }
+
+    /********************************************************************
+     * 4. PIXEL ART CANVAS RENDERER
+     ********************************************************************/
+    function drawGame() {
+        // Dynamic Sky Phase based on Distance
+        const phase = Math.floor((gameState.distance / 150) % 4);
+        const skyGradients = [
+            ['#38bdf8', '#bae6fd', 'Pagi Ceria ☀️'],
+            ['#f97316', '#fde047', 'Senja Oranye 🌅'],
+            ['#1e1b4b', '#4338ca', 'Malam Bintang 🌙'],
+            ['#090d16', '#3b0764', 'Luar Angkasa 🪐']
+        ];
+        const [topCol, botCol, label] = skyGradients[phase];
+        const phaseEl = document.getElementById('sky-phase-label');
+        if (phaseEl && phaseEl.textContent !== label) phaseEl.textContent = label;
+
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, topCol);
+        grad.addColorStop(1, botCol);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Stars in Night/Space phase
+        if (phase >= 2) {
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 30; i++) {
+                const sx = ((i * 97 - gameState.cameraX * 0.1) % canvas.width + canvas.width) % canvas.width;
+                const sy = (i * 43) % (canvas.height * 0.6);
+                ctx.fillRect(sx, sy, (i % 2) + 2, (i % 2) + 2);
+            }
+        }
+
+        // Parallax Pixel Clouds
+        ctx.fillStyle = phase >= 2 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.85)';
+        gameState.clouds.forEach(c => {
+            const cx = ((c.x - gameState.cameraX * c.speed) % (canvas.width + 200) + (canvas.width + 200)) % (canvas.width + 200) - 100;
+            ctx.fillRect(cx, c.y, c.w, 22);
+            ctx.fillRect(cx + 12, c.y - 10, c.w - 24, 12);
+        });
+
+        ctx.save();
+        ctx.translate(-Math.floor(gameState.cameraX), 0);
+
+        // Draw Funny Milestone Signs
+        gameState.signs.forEach(s => {
+            // Wooden post
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(s.x + 16, s.y - 46, 8, 46);
+            // Sign board
+            ctx.fillStyle = '#fef3c7';
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 3;
+            ctx.fillRect(s.x - 55, s.y - 76, 150, 34);
+            ctx.strokeRect(s.x - 55, s.y - 76, 150, 34);
+            ctx.fillStyle = '#451a03';
+            ctx.font = 'bold 10px Fredoka, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(s.text, s.x + 20, s.y - 55);
+        });
+
+        // Draw Platforms & Mystery Blocks
+        const pulse = Math.sin(Date.now() * 0.008) * 2;
+        for (const p of gameState.platforms) {
+            const py = p.y + (p.bounceY || 0);
+            if (p.type === 'ground') {
+                // Grass Top
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(p.x, py, p.w, 14);
+                ctx.fillStyle = '#16a34a';
+                for (let gx = p.x; gx < p.x + p.w; gx += 20) {
+                    ctx.fillRect(gx, py + 10, 10, 6);
+                }
+                // Dirt Body
+                ctx.fillStyle = '#92400e';
+                ctx.fillRect(p.x, py + 14, p.w, p.h - 14);
+                // Pixel border
+                ctx.strokeStyle = '#451a03';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(p.x, py, p.w, p.h);
+            } else if (p.type === 'brick') {
+                ctx.fillStyle = '#c2410c';
+                ctx.fillRect(p.x, py, p.w, p.h);
+                ctx.strokeStyle = '#431407';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(p.x, py, p.w, p.h);
+                // Brick mortar lines
+                ctx.fillStyle = '#7c2d12';
+                ctx.fillRect(p.x, py + p.h / 2 - 2, p.w, 3);
+                ctx.fillRect(p.x + p.w / 2 - 2, py, 3, p.h / 2);
+            } else if (p.type === 'mystery') {
+                // Glowing Gold Mystery Block [?]
+                ctx.fillStyle = '#facc15';
+                ctx.fillRect(p.x, py, p.w, p.h);
+                ctx.strokeStyle = '#713f12';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(p.x, py, p.w, p.h);
+                // Corner rivets
+                ctx.fillStyle = '#a16207';
+                ctx.fillRect(p.x + 4, py + 4, 4, 4);
+                ctx.fillRect(p.x + p.w - 8, py + 4, 4, 4);
+                ctx.fillRect(p.x + 4, py + p.h - 8, 4, 4);
+                ctx.fillRect(p.x + p.w - 8, py + p.h - 8, 4, 4);
+                // Question Mark
+                ctx.fillStyle = '#713f12';
+                ctx.font = 'bold 18px "Press Start 2P", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('?', p.x + p.w / 2 + 1, py + 28 + pulse * 0.4);
+            } else if (p.type === 'used') {
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(p.x, py, p.w, p.h);
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(p.x, py, p.w, p.h);
+                ctx.fillStyle = '#334155';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('✓', p.x + p.w / 2, py + 25);
+            }
+        }
+
+        // Draw Coins
+        const timeNow = Date.now() * 0.005;
+        for (const c of gameState.coinsList) {
+            if (c.collected) continue;
+            const cy = c.y + Math.sin(timeNow + c.bobOffset) * 4;
+            ctx.fillStyle = '#fde047';
+            ctx.beginPath();
+            ctx.arc(c.x, cy, c.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#ca8a04';
+            ctx.stroke();
+            ctx.fillStyle = '#ca8a04';
+            ctx.fillRect(c.x - 2, cy - 5, 4, 10);
+        }
+
+        // Draw Enemies (Cute Pixel Slimes & Mushrooms)
+        for (const e of gameState.enemies) {
+            if (!e.alive) continue;
+            const bounce = Math.abs(Math.sin(timeNow * 1.5 + e.x * 0.05)) * 4;
+            if (e.type === 'slime') {
+                ctx.fillStyle = '#a855f7';
+                ctx.fillRect(e.x, e.y - bounce, e.w, e.h + bounce);
+                ctx.strokeStyle = '#581c87';
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(e.x, e.y - bounce, e.w, e.h + bounce);
+            } else {
+                // Mushroom Cap
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(e.x - 2, e.y - bounce, e.w + 4, 16);
+                ctx.fillStyle = '#fef2f2';
+                ctx.fillRect(e.x + 4, e.y - bounce + 4, 6, 6);
+                ctx.fillRect(e.x + 20, e.y - bounce + 4, 6, 6);
+                // Stem
+                ctx.fillStyle = '#fde68a';
+                ctx.fillRect(e.x + 4, e.y + 16 - bounce, e.w - 8, 14 + bounce);
+            }
+            // Eyes
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(e.x + 6, e.y + 8 - bounce, 6, 6);
+            ctx.fillRect(e.x + 19, e.y + 8 - bounce, 6, 6);
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(e.x + 8, e.y + 10 - bounce, 3, 3);
+            ctx.fillRect(e.x + 21, e.y + 10 - bounce, 3, 3);
+        }
+
+        // Draw Protagonist: KUCING KOTAK (Cute Blocky Pixel Cat)
+        drawKucingKotak();
+
+        // Draw Particles
+        for (const pt of gameState.particles) {
+            ctx.fillStyle = pt.color;
+            ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
+        }
+
+        // Draw Floating Texts
+        for (const ft of gameState.floatingTexts) {
+            ctx.font = 'bold 14px Fredoka, sans-serif';
+            ctx.fillStyle = '#0f172a';
+            ctx.fillText(ft.text, ft.x + 1, ft.y + 1);
+            ctx.fillStyle = ft.color;
+            ctx.fillText(ft.text, ft.x, ft.y);
+        }
+
+        ctx.restore();
+    }
+
+    function drawKucingKotak() {
+        if (cat.invincibleTimer > 0 && Math.floor(cat.invincibleTimer / 4) % 2 === 0) return;
+
+        ctx.save();
+        const cx = cat.x + cat.w / 2;
+        const cy = cat.y + cat.h;
+        ctx.translate(cx, cy);
+        ctx.scale(cat.facing * cat.scaleX, cat.scaleY);
+
+        const w = cat.w;
+        const h = cat.h;
+
+        // Bobbing Pixel Tail
+        const tailWag = Math.sin(cat.tailAngle) * 5;
+        ctx.fillStyle = '#f472b6';
+        ctx.strokeStyle = '#500724';
+        ctx.lineWidth = 2.5;
+        ctx.fillRect(-w / 2 - 10, -16 + tailWag, 12, 7);
+        ctx.strokeRect(-w / 2 - 10, -16 + tailWag, 12, 7);
+
+        // Pointy Cat Ears
+        ctx.fillStyle = '#f472b6';
+        // Left Ear
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 + 2, -h);
+        ctx.lineTo(-w / 2 + 2, -h - 10);
+        ctx.lineTo(-w / 2 + 13, -h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Right Ear
+        ctx.beginPath();
+        ctx.moveTo(w / 2 - 13, -h);
+        ctx.lineTo(w / 2 - 2, -h - 10);
+        ctx.lineTo(w / 2 - 2, -h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Main Blocky Cat Body (Cute Pastel Pink/Cream Calico)
+        ctx.fillStyle = '#fbcfe8';
+        ctx.fillRect(-w / 2, -h, w, h);
+        // Cute Forehead Stripes
+        ctx.fillStyle = '#ec4899';
+        ctx.fillRect(-4, -h + 2, 8, 5);
+        ctx.fillRect(-12, -h + 2, 5, 4);
+        // White Tummy Patch
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-w / 2 + 6, -12, w - 12, 10);
+
+        // Body Pixel Outline
+        ctx.strokeStyle = '#500724';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(-w / 2, -h, w, h);
+
+        // Big Expressive Kawaii Eyes
+        ctx.fillStyle = '#1e1b4b';
+        ctx.fillRect(-6, -h + 11, 6, 8);
+        ctx.fillRect(8, -h + 11, 6, 8);
+        // Eye Sparkle
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-5, -h + 12, 3, 3);
+        ctx.fillRect(9, -h + 12, 3, 3);
+
+        // Rosy Cheeks
+        ctx.fillStyle = '#fb7185';
+        ctx.fillRect(-11, -h + 19, 5, 3);
+        ctx.fillRect(13, -h + 19, 5, 3);
+
+        // Cute Cat Nose/Mouth (w)
+        ctx.fillStyle = '#831843';
+        ctx.fillRect(2, -h + 18, 4, 3);
+
+        // Little Paws when running
+        const pawStep = Math.sin(cat.tailAngle * 2) * 3;
+        ctx.fillStyle = '#f472b6';
+        ctx.fillRect(-w / 2 + 4, -2 + pawStep, 8, 4);
+        ctx.fillRect(w / 2 - 12, -2 - pawStep, 8, 4);
+
+        ctx.restore();
+    }
+
+    /********************************************************************
+     * 5. CHALLENGE SYSTEM MANAGER (Triggered on [?] Block Hit)
+     ********************************************************************/
+    const IN_GAME_CHALLENGES = [
+        'ROMANTIC_MSG',
+        'CHESS_PUZZLE',
+        'CHESS_FULL',
+        'TICTACTOE',
+        'RPS',
+        'REVERSE_WORD',
+        'COLOR_MATH',
+        'MEMORY_MATCH',
+        'WHACK_SLIME',
+        'SIMON_SAYS',
+        'TIMING_BAR',
+        'MINESWEEPER',
+        'STROOP_TEST',
+        'MASH_BALLOON',
+        'FLAPPY_NEKO',
+        'NUMBER_ORDER'
+    ];
+
+    const CHALLENGE_TYPES = [...IN_GAME_CHALLENGES, 'WHATSAPP'];
+
+    let lastChallengeType = '';
+    let activeChallengeCleanup = null;
+
+    function cleanupCurrentChallenge() {
+        if (typeof activeChallengeCleanup === 'function') {
+            activeChallengeCleanup();
+            activeChallengeCleanup = null;
+        }
+    }
+
+    function triggerMysteryChallenge(blockRef = null, forcedType = null) {
+        cleanupCurrentChallenge();
+        gameState.inChallenge = true;
+        gameState.activeMysteryBlock = blockRef;
+        keys.left = false;
+        keys.right = false;
+        keys.jump = false;
+
+        let chosen = forcedType;
+        if (!chosen) {
+            const rollWA = Math.random() < 0.05;
+            if (rollWA && lastChallengeType !== 'WHATSAPP') {
+                chosen = 'WHATSAPP';
+            } else {
+                const pool = IN_GAME_CHALLENGES.filter(t => t !== lastChallengeType);
+                chosen = pool[Math.floor(Math.random() * pool.length)];
+            }
+        }
+        lastChallengeType = chosen;
+
+        const modal = document.getElementById('challenge-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        const fb = document.getElementById('ch-feedback');
+        fb.classList.add('hidden');
+
+        renderChallengeByType(chosen);
+    }
+
+    function completeChallengeSuccess(rewardCoins = 15, message = "Mantap Meong! Tantangan Selesai!") {
+        cleanupCurrentChallenge();
+        sfx.winChallenge();
+        gameState.coins += rewardCoins;
+        gameState.challengesDone++;
+        
+        // Track consecutive successful challenges for the secret bonus!
+        if (typeof gameState.consecutiveStreak === 'undefined') gameState.consecutiveStreak = 0;
+        gameState.consecutiveStreak++;
+
+        updateHUD();
+
+        const fb = document.getElementById('ch-feedback');
+        fb.className = "mt-4 p-3 rounded-xl text-center font-bold text-sm bg-emerald-500/20 border-2 border-emerald-400 text-emerald-300";
+        fb.innerHTML = `🎉 ${message} (+${rewardCoins} 🪙 Koin!)`;
+        fb.classList.remove('hidden');
+
+        // Check if player unlocked the secret 3x consecutive bonus!
+        const unlockedSecret = gameState.consecutiveStreak >= 3;
+        if (unlockedSecret) {
+            gameState.consecutiveStreak = 0; // reset streak
+            setTimeout(showSecretBonusModal, 900);
+            return;
+        }
+
+        setTimeout(() => {
+            const modal = document.getElementById('challenge-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            gameState.inChallenge = false;
+            spawnFloatingText(cat.x, cat.y - 25, `+${rewardCoins} KOIN! 🏆`, '#4ade80');
+            showToast(`Misi Selesai! Streak (${gameState.consecutiveStreak}/3) Lanjut lari!`, '🏆');
+        }, 1150);
+    }
+
+    function showSecretBonusModal() {
+        const bodyEl = document.getElementById('ch-body');
+        const titleEl = document.getElementById('ch-title');
+        const tagEl = document.getElementById('ch-category-tag');
+        const iconEl = document.getElementById('ch-badge-icon');
+
+        iconEl.textContent = '💋';
+        tagEl.textContent = 'RAHASIA TERBUKA: 3X STREAK!';
+        titleEl.textContent = '🎁 Bonus Spesial: PAP atau VN Cium!';
+
+        const waText = encodeURIComponent(
+            `Hai sayang! Aku baru aja berhasil nyelesaiin 3 challenge berturut-turut di game Neko-Block! 💖 Sesuai hadiah rahasianya, aku mau minta PAP / VN cium dong sekarang! 😘`
+        );
+        const waSecretUrl = `https://wa.me/6289674037725?text=${waText}`;
+
+        bodyEl.innerHTML = `
+            <div class="bg-gradient-to-r from-pink-900/60 to-purple-900/60 border-2 border-pink-400 rounded-2xl p-4 text-center mb-4 shadow-xl">
+                <div class="text-xs font-bold text-pink-300 uppercase tracking-widest mb-1">
+                    🔓 TOMBOL RAHASIA KETEMU!
+                </div>
+                <p class="text-sm sm:text-base font-extrabold text-white leading-relaxed mb-3">
+                    Hebat banget! Kamu sukses menyelesaikan 3 tantangan berturut-turut tanpa jeda. Kamu berhak mendapatkan hadiah spesial dari cowokmu! 💋✨
+                </p>
+                <a href="${waSecretUrl}" target="_blank" rel="noopener noreferrer"
+                   class="pixel-btn bg-pink-500 hover:bg-pink-400 text-slate-950 font-extrabold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base w-full shadow-lg mb-2">
+                    <i class="fab fa-whatsapp text-xl"></i>
+                    Klaim PAP / VN Cium ke WA (+6289674037725)
+                </a>
+            </div>
+            <button id="btn-close-secret" class="pixel-btn w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-2.5 rounded-xl text-xs">
+                Lanjut Petualangan Meong 🐾
+            </button>
+        `;
+
+        document.getElementById('btn-close-secret').onclick = () => {
+            const modal = document.getElementById('challenge-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            gameState.inChallenge = false;
+            showToast("Bonus Rahasia Diklaim! Lanjut lari!", "💋");
+        };
+    }
+
+    function renderChallengeByType(type) {
+        const iconEl = document.getElementById('ch-badge-icon');
+        const tagEl = document.getElementById('ch-category-tag');
+        const titleEl = document.getElementById('ch-title');
+        const bodyEl = document.getElementById('ch-body');
+
+        if (type === 'ROMANTIC_MSG') {
+            iconEl.textContent = '💌';
+            tagEl.textContent = 'PESAN ROMANTIS SPESIAL';
+            titleEl.textContent = 'Harta Karun Hati dari Pembuat Game';
+            renderRomanticMessage(bodyEl);
+        } else if (type === 'CHESS_PUZZLE') {
+            iconEl.textContent = '♟️';
+            tagEl.textContent = 'CATUR: SKAKMAT 1 LANGKAH';
+            titleEl.textContent = 'Skakmat Bot Sekarang!';
+            renderChessPuzzle(bodyEl);
+        } else if (type === 'CHESS_FULL') {
+            iconEl.textContent = '👑';
+            tagEl.textContent = 'CATUR: 8x8 VS BOT';
+            titleEl.textContent = 'Duel Catur Lawan Bot Kucing!';
+            renderFullChess8x8(bodyEl);
+        } else if (type === 'WHATSAPP') {
+            iconEl.textContent = '📱';
+            tagEl.textContent = 'REAL-LIFE CHALLENGE (WA)';
+            titleEl.textContent = 'Tantangan Dunia Nyata!';
+            renderWhatsAppChallenge(bodyEl);
+        } else if (type === 'TICTACTOE') {
+            iconEl.textContent = '❌';
+            tagEl.textContent = 'MINIGAME: TIC-TAC-TOE';
+            titleEl.textContent = 'Kalahkan atau Tahan Imbang Bot!';
+            renderTicTacToe(bodyEl);
+        } else if (type === 'RPS') {
+            iconEl.textContent = '✌️';
+            tagEl.textContent = 'MINIGAME: SUIT JEPANG';
+            titleEl.textContent = 'Batu Gunting Kertas (Best of 3)';
+            renderRPSChallenge(bodyEl);
+        } else if (type === 'REVERSE_WORD') {
+            iconEl.textContent = '🔤';
+            tagEl.textContent = 'MINIGAME: KETIK TERBALIK';
+            titleEl.textContent = 'Ketik Kata Ini Secara Terbalik!';
+            renderReverseWord(bodyEl);
+        } else if (type === 'COLOR_MATH') {
+            iconEl.textContent = '🧮';
+            tagEl.textContent = 'MINIGAME: HITUNG CEPAT';
+            titleEl.textContent = 'Jawab Cepat 3 Soal Matematika!';
+            renderColorMath(bodyEl);
+        } else if (type === 'MEMORY_MATCH') {
+            iconEl.textContent = '🧠';
+            tagEl.textContent = 'MINIGAME: MEMORY CARD (4x2)';
+            titleEl.textContent = 'Cocokkan Semua Pasangan Kartu!';
+            renderMemoryMatch(bodyEl);
+        } else if (type === 'WHACK_SLIME') {
+            iconEl.textContent = '🔨';
+            tagEl.textContent = 'MINIGAME: GEBUK SLIME!';
+            titleEl.textContent = 'Ketok 8 Slime Sebelum Waktu Habis!';
+            renderWhackASlime(bodyEl);
+        } else if (type === 'SIMON_SAYS') {
+            iconEl.textContent = '🎨';
+            tagEl.textContent = 'MINIGAME: SIMON SAYS WARNA';
+            titleEl.textContent = 'Hafalkan & Ulangi 4 Urutan Warna!';
+            renderSimonSays(bodyEl);
+        } else if (type === 'TIMING_BAR') {
+            iconEl.textContent = '🎯';
+            tagEl.textContent = 'MINIGAME: TIMING BAR';
+            titleEl.textContent = 'Tekan STOP Pas di Zona Hijau (3x)!';
+            renderTimingBar(bodyEl);
+        } else if (type === 'MINESWEEPER') {
+            iconEl.textContent = '💣';
+            tagEl.textContent = 'MINIGAME: MINESWEEPER MINI';
+            titleEl.textContent = 'Buka 5 Petak Aman Tanpa Kena Bom!';
+            renderMinesweeperMini(bodyEl);
+        } else if (type === 'STROOP_TEST') {
+            iconEl.textContent = '🌈';
+            tagEl.textContent = 'MINIGAME: STROOP TEST';
+            titleEl.textContent = 'Pilih WARNA TEKSNYA, Bukan Tulisannya!';
+            renderStroopTest(bodyEl);
+        } else if (type === 'MASH_BALLOON') {
+            iconEl.textContent = '🎈';
+            tagEl.textContent = 'MINIGAME: POMPA BALON!';
+            titleEl.textContent = 'Spam Klik / Spasi Sampai Balon Penuh!';
+            renderMashBalloon(bodyEl);
+        } else if (type === 'FLAPPY_NEKO') {
+            iconEl.textContent = '🐍';
+            tagEl.textContent = 'MINIGAME: FLAPPY NEKO';
+            titleEl.textContent = 'Terbang Lewati 5 Pipa Tanpa Nabrak!';
+            renderFlappyNeko(bodyEl);
+        } else if (type === 'NUMBER_ORDER') {
+            iconEl.textContent = '🔢';
+            tagEl.textContent = 'MINIGAME: URUTKAN ANGKA';
+            titleEl.textContent = 'Klik Angka 1 Sampai 6 Secara Berurutan!';
+            renderNumberOrder(bodyEl);
+        }
+    }
+
+    /********************************************************************
+     * 6AA. ROMANTIC MESSAGES & DIRECT WA FOR SPOUSE
+     ********************************************************************/
+    const ROMANTIC_QUOTES = [
+        "Meskipun game ini tidak punya ujung dan tidak ada istana, tujuanku di dunia nyata cuma satu: Berhenti di hatimu dan nemenin kamu selamanya. 💖",
+        "Kucing kotak aja butuh tempat bersandar, apalagi aku... yang selalu pengen bersandar di pelukan kamu setiap hari. ✨",
+        "Kalau hidup ini seperti endless platformer, aku bersyukur banget rintangan tersulit di dunia jadi terasa gampang karena kamu selalu ada di garis 'finish' hidupku. 🌹",
+        "Tiap kali aku nyundul balok [?] misterius, keajaiban terbaik yang aku dapatkan tetaplah senyuman kamu yang manis banget itu. 🥰",
+        "Gak perlu peta atau istana megah untuk bahagia, cukup digandeng sama kamu aja duniaku udah lengkap rasanya. 💍",
+        "Tahu gak bedanya kamu sama balok misterius di game ini? Kalau balok isinya challenge acak, kalau kamu isinya kebahagiaan seumur hidup. 💘",
+        "Walaupun karakternya cuma kucing kotak yang loncat-loncat mulu, cintaku ke kamu itu bulat sempurna dan gak ada tandingannya. 😻",
+        "Kalau rintangan game ini bisa dilewatin, rasa sayangku ke kamu malah gak bakal pernah ada habisnya. Terus jalan bareng aku ya? 🌸",
+        "Katanya hidup itu penuh teka-teki, tapi semenjak ada kamu, semua jawabannya cuma satu: Kamu milik aku selamanya. 💑",
+        "Capek lari-lari di game? Tenang, pelukan kamu selalu jadi tempat istirahat paling nyaman buat aku. ✨"
+    ];
+
+    function renderRomanticMessage(container) {
+        const quote = ROMANTIC_QUOTES[Math.floor(Math.random() * ROMANTIC_QUOTES.length)];
+        const waText = encodeURIComponent(
+            `Hai sayang! 💖 Tadi aku lagi main game Neko-Block buatan pacarku, terus pas nyundul balok misterius [?] tiba-tiba keluar pesan romantis ini buat kamu:\n\n*"${quote}"*\n\nI love you! 🥰`
+        );
+        const waShareUrl = `https://api.whatsapp.com/send?text=${waText}`;
+
+        container.innerHTML = `
+            <div class="bg-pink-950/40 border-2 border-pink-400/80 rounded-2xl p-4 text-center mb-4 shadow-lg">
+                <div class="text-xs font-bold text-pink-300 uppercase tracking-widest mb-2">
+                    💌 PESAN DARI SANG PEMBUAT GAME HATI KAMU
+                </div>
+                <p class="text-sm sm:text-base font-extrabold text-white leading-relaxed italic">
+                    "${quote}"
+                </p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <a href="${waShareUrl}" target="_blank" rel="noopener noreferrer"
+                   class="pixel-btn bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm">
+                    <i class="fab fa-whatsapp text-lg"></i>
+                    Kirim Pesan Ini ke WA Pacar
+                </a>
+                <button id="btn-claim-romance" class="pixel-btn bg-pink-500 hover:bg-pink-400 text-slate-950 font-extrabold py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm">
+                    ✨ Ambil Koin & Lanjut Main
+                </button>
+            </div>
+        `;
+
+        document.getElementById('btn-claim-romance').onclick = () => {
+            completeChallengeSuccess(20, "Pesan Romantis Tersimpan di Hati! Lanjut Meong!");
+        };
+    }
+
+    /********************************************************************
+     * 6A. CATEGORY 1A: PUZZLE CATUR (MATE IN 1)
+     ********************************************************************/
+    const CHESS_PUZZLES = [
+        {
+            name: "Scholar's Mate (Skakmat Menteri di f7)",
+            fen: "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4",
+            hint: "Gerakkan Menteri Putih (♕) ke petak f7!"
+        },
+        {
+            name: "Back Rank Mate (Skakmat Benteng di Baris 8)",
+            fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+            hint: "Gerakkan Benteng Putih (♖) lurus ke baris paling atas (e8)!"
+        },
+        {
+            name: "Queen Support Mate (Menteri di depan Raja Hitam)",
+            fen: "6k1/5p1p/6pQ/8/8/8/5PPP/6K1 w - - 0 1",
+            hint: "Gerakkan Menteri Putih (♕) ke g7 yang dijaga pion!"
+        },
+        {
+            name: "Knight Smothered Mate (Skakmat Kuda Cantik)",
+            fen: "6rk/5Npp/8/8/8/8/8/6K1 w - - 0 1",
+            hint: "Loncatkan Kuda Putih (♘) untuk memberikan skakmat!"
+        }
+    ];
+
+    const PIECE_UNICODE = {
+        p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚',
+        P: '♙', R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔'
+    };
+
+    function renderChessPuzzle(container) {
+        const puzzle = CHESS_PUZZLES[Math.floor(Math.random() * CHESS_PUZZLES.length)];
+        const game = new Chess(puzzle.fen);
+        let selectedSq = null;
+
+        container.innerHTML = `
+            <div class="text-center mb-3">
+                <p class="text-xs sm:text-sm text-amber-300 font-bold">${puzzle.name}</p>
+                <p class="text-xs text-slate-300">Kamu pegang <b>Putih</b>. Temukan <b>1 langkah Skakmat</b> untuk keluar dari balok ini!</p>
+            </div>
+            <div id="puzzle-board" class="chess-grid"></div>
+            <div class="flex items-center justify-between mt-3 gap-2">
+                <button id="btn-puzzle-hint" class="pixel-btn bg-slate-800 text-cyan-300 text-xs px-3 py-1.5 rounded-lg">
+                    💡 Bocoran Langkah
+                </button>
+                <span id="puzzle-status" class="text-xs text-slate-400">Klik bidak putih lalu klik petak tujuan.</span>
+            </div>
+        `;
+
+        const boardEl = document.getElementById('puzzle-board');
+        const statusEl = document.getElementById('puzzle-status');
+
+        document.getElementById('btn-puzzle-hint').onclick = () => {
+            sfx.click();
+            statusEl.innerHTML = `<span class="text-amber-300 font-bold">${puzzle.hint}</span>`;
+        };
+
+        function drawBoard() {
+            boardEl.innerHTML = '';
+            const board = game.board();
+            const validMoves = selectedSq ? game.moves({ square: selectedSq, verbose: true }) : [];
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const sqName = 'abcdefgh'[c] + (8 - r);
+                    const piece = board[r][c];
+                    const isLight = (r + c) % 2 === 0;
+                    const div = document.createElement('div');
+                    div.className = `chess-sq ${isLight ? 'sq-light' : 'sq-dark'}`;
+                    if (selectedSq === sqName) div.classList.add('sq-selected');
+
+                    const moveMatch = validMoves.find(m => m.to === sqName);
+                    if (moveMatch) {
+                        div.classList.add(piece ? 'sq-capture' : 'sq-valid');
+                    }
+
+                    if (piece) {
+                        const span = document.createElement('span');
+                        span.className = piece.color === 'w' ? 'piece-w' : 'piece-b';
+                        const sym = piece.color === 'w' ? PIECE_UNICODE[piece.type.toUpperCase()] : PIECE_UNICODE[piece.type];
+                        span.textContent = sym;
+                        div.appendChild(span);
+                    }
+
+                    div.onclick = () => {
+                        if (selectedSq && moveMatch) {
+                            const moveObj = game.move({ from: selectedSq, to: sqName, promotion: 'q' });
+                            selectedSq = null;
+                            drawBoard();
+                            if (game.in_checkmate()) {
+                                completeChallengeSuccess(25, "SKAKMAT! Kamu Jenius Catur!");
+                            } else if (moveObj) {
+                                sfx.hurt();
+                                statusEl.innerHTML = `<span class="text-rose-400 font-bold">Belum skakmat! Coba langkah lain!</span>`;
+                                setTimeout(() => {
+                                    game.undo();
+                                    drawBoard();
+                                }, 700);
+                            }
+                        } else if (piece && piece.color === 'w') {
+                            sfx.click();
+                            selectedSq = sqName;
+                            drawBoard();
+                        } else {
+                            selectedSq = null;
+                            drawBoard();
+                        }
+                    };
+
+                    boardEl.appendChild(div);
+                }
+            }
+        }
+        drawBoard();
+    }
+
+    /********************************************************************
+     * 6B. CATEGORY 1B: FULL CATUR 8x8 VS BOT
+     ********************************************************************/
+    function renderFullChess8x8(container) {
+        const game = new Chess();
+        let selectedSq = null;
+        let lastMove = null;
+        let playerPoints = 0;
+        const targetPoints = 5; // Win by Checkmate OR capturing 5 points worth of pieces so mid-game stays snappy!
+        const pieceVal = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+        container.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2 bg-slate-800 px-3 py-2 rounded-xl border border-slate-700">
+                <div class="text-xs">
+                    <span class="text-amber-300 font-bold">Syarat Lulus:</span> Skakmat Bot <b>ATAU</b> Rebut <b>${targetPoints} Poin Bidak</b>!
+                </div>
+                <div class="pixel-font text-xs text-emerald-400">
+                    Poinmu: <span id="chess-pts">0</span> / ${targetPoints}
+                </div>
+            </div>
+            <div id="full-chess-board" class="chess-grid"></div>
+            <div class="flex items-center justify-between mt-2 text-xs text-slate-300">
+                <span id="full-chess-turn">Giliranmu (Putih) melangkah!</span>
+                <span class="text-amber-300">Pion=1, Kuda/Gajah=3, Benteng=5, Menteri=9</span>
+            </div>
+        `;
+
+        const boardEl = document.getElementById('full-chess-board');
+        const turnEl = document.getElementById('full-chess-turn');
+        const ptsEl = document.getElementById('chess-pts');
+
+        function makeBotMove() {
+            if (game.game_over()) return;
+            const moves = game.moves({ verbose: true });
+            if (moves.length === 0) return;
+
+            // Smart Greedy + Center preference Bot
+            let bestMove = moves[0];
+            let bestScore = -999;
+            for (const m of moves) {
+                let score = Math.random() * 0.8;
+                if (m.captured) score += (pieceVal[m.captured] || 1) * 3;
+                if (m.san.includes('+')) score += 2.5;
+                if (['d4', 'd5', 'e4', 'e5'].includes(m.to)) score += 0.8;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = m;
+                }
+            }
+
+            const executed = game.move(bestMove);
+            lastMove = { from: executed.from, to: executed.to };
+            sfx.click();
+            drawBoard();
+
+            if (game.in_checkmate()) {
+                turnEl.innerHTML = `<span class="text-rose-400 font-bold">Bot Skakmat Kamu! Papan di-reset...</span>`;
+                setTimeout(() => renderFullChess8x8(container), 1400);
+            } else if (game.in_check()) {
+                turnEl.innerHTML = `<span class="text-amber-400 font-bold">⚠️ SKAK! Lindungi Rajamu!</span>`;
+            } else {
+                turnEl.textContent = "Giliranmu (Putih) melangkah!";
+            }
+        }
+
+        function drawBoard() {
+            boardEl.innerHTML = '';
+            const board = game.board();
+            const validMoves = selectedSq ? game.moves({ square: selectedSq, verbose: true }) : [];
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const sqName = 'abcdefgh'[c] + (8 - r);
+                    const piece = board[r][c];
+                    const isLight = (r + c) % 2 === 0;
+                    const div = document.createElement('div');
+                    div.className = `chess-sq ${isLight ? 'sq-light' : 'sq-dark'}`;
+                    if (selectedSq === sqName) div.classList.add('sq-selected');
+                    if (lastMove && (lastMove.from === sqName || lastMove.to === sqName)) {
+                        div.classList.add('sq-lastmove');
+                    }
+
+                    const moveMatch = validMoves.find(m => m.to === sqName);
+                    if (moveMatch) {
+                        div.classList.add(piece ? 'sq-capture' : 'sq-valid');
+                    }
+
+                    if (piece) {
+                        const span = document.createElement('span');
+                        span.className = piece.color === 'w' ? 'piece-w' : 'piece-b';
+                        const sym = piece.color === 'w' ? PIECE_UNICODE[piece.type.toUpperCase()] : PIECE_UNICODE[piece.type];
+                        span.textContent = sym;
+                        div.appendChild(span);
+                    }
+
+                    div.onclick = () => {
+                        if (game.turn() !== 'w') return;
+                        if (selectedSq && moveMatch) {
+                            const moveRes = game.move({ from: selectedSq, to: sqName, promotion: 'q' });
+                            selectedSq = null;
+                            if (moveRes) {
+                                lastMove = { from: moveRes.from, to: moveRes.to };
+                                if (moveRes.captured) {
+                                    playerPoints += pieceVal[moveRes.captured] || 1;
+                                    ptsEl.textContent = playerPoints;
+                                    sfx.coin();
+                                } else {
+                                    sfx.click();
+                                }
+                                drawBoard();
+
+                                if (game.in_checkmate()) {
+                                    completeChallengeSuccess(35, "SKAKMAT FULL CATUR! Luar Biasa!");
+                                    return;
+                                }
+                                if (playerPoints >= targetPoints) {
+                                    completeChallengeSuccess(25, `Target ${targetPoints} Poin Bidak Tercapai! Kamu Menang!`);
+                                    return;
+                                }
+
+                                turnEl.textContent = "🤖 Bot Kucing sedang berpikir...";
+                                setTimeout(makeBotMove, 420);
+                            }
+                        } else if (piece && piece.color === 'w') {
+                            sfx.click();
+                            selectedSq = sqName;
+                            drawBoard();
+                        } else {
+                            selectedSq = null;
+                            drawBoard();
+                        }
+                    };
+
+                    boardEl.appendChild(div);
+                }
+            }
+        }
+        drawBoard();
+    }
+
+    /********************************************************************
+     * 6C. CATEGORY 3: REAL-LIFE CHALLENGE VIA WHATSAPP (6289674037725)
+     ********************************************************************/
+    const WA_NUMBER = "6289674037725";
+    const REAL_LIFE_QUESTS = [
+        "Ambil segelas air putih sekarang, minum sampai habis, lalu kirim foto gelasnya ke WA!",
+        "Foto benda berwarna MERAH atau PINK yang ada paling dekat denganmu sekarang!",
+        "Kirim Voice Note (VN) ke WA tiruin suara 'Meong Kucing Kotak' paling imut!",
+        "Selfie dengan gaya senyum paling lebar atau pose peace ✌️ lalu kirim ke WA!",
+        "Berdiri dan lakukan peregangan (stretching) atau 5x Squat, lalu lapor 'Sudah olahraga!' ke WA!",
+        "Foto pemandangan di sekitar meja/kamarmu sekarang dan kirim ke WA!"
+    ];
+
+    function renderWhatsAppChallenge(container) {
+        const quest = REAL_LIFE_QUESTS[Math.floor(Math.random() * REAL_LIFE_QUESTS.length)];
+        const secretSessionCode = "MEONG" + Math.floor(10 + Math.random() * 89);
+        const waMessage = encodeURIComponent(
+            `Halo Admin Neko-Block! 🐱\nSaya lagi main di jarak *${gameState.distance}m* dan dapet Real-Life Challenge:\n\n*"${quest}"*\n\nIni buktinya! Minta kode lolosnya dong (atau kode: ${secretSessionCode}) 🙏`
+        );
+        const waUrl = `https://wa.me/${WA_NUMBER}?text=${waMessage}`;
+
+        container.innerHTML = `
+            <div class="bg-emerald-950/60 border-2 border-emerald-400 rounded-2xl p-4 text-center mb-4">
+                <div class="text-xs font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                    📸 MISI DUNIA NYATA (KE WA: +${WA_NUMBER})
+                </div>
+                <p class="text-base sm:text-lg font-extrabold text-white leading-snug">
+                    "${quest}"
+                </p>
+            </div>
+
+            <!-- Step 1: Open WhatsApp Button -->
+            <a id="btn-open-wa" href="${waUrl}" target="_blank" rel="noopener noreferrer"
+               class="pixel-btn w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base mb-4">
+                <i class="fab fa-whatsapp text-xl"></i>
+                1. KIRIM BUKTI KE WHATSAPP (${WA_NUMBER})
+            </a>
+
+            <!-- Dual Verification Box: Code Input OR Countdown Timer -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-800/90 p-3 rounded-2xl border border-slate-700 text-xs">
+                <!-- Option A: Secret Code from Admin -->
+                <div class="flex flex-col justify-between bg-slate-900 p-3 rounded-xl border border-slate-700">
+                    <div>
+                        <div class="font-bold text-amber-300 mb-1">🔑 Opsi A: Pakai Kode Admin</div>
+                        <p class="text-slate-400 mb-2">Masukkan kode balasan dari WA (Ketik <b>MEONG</b>, <b>LOLOS</b>, atau <b>${secretSessionCode}</b>):</p>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <input id="wa-code-input" type="text" placeholder="Ketik kode..."
+                               class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2.5 py-1.5 text-white uppercase font-bold outline-none focus:border-amber-400">
+                        <button id="btn-verify-code" class="pixel-btn bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg">
+                            Cek
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Option B: Auto Timer after clicking WA -->
+                <div class="flex flex-col justify-between bg-slate-900 p-3 rounded-xl border border-slate-700">
+                    <div>
+                        <div class="font-bold text-cyan-300 mb-1">⏱️ Opsi B: Verifikasi Timer</div>
+                        <p id="wa-timer-desc" class="text-slate-400 mb-2">Klik tombol WhatsApp hijau di atas untuk memulai timer buka kunci otomatis (10 detik).</p>
+                    </div>
+                    <button id="btn-wa-timer-unlock" disabled
+                            class="pixel-btn w-full bg-cyan-400 text-slate-950 font-bold py-2 rounded-lg">
+                        🔒 Klik Tombol WA Dulu
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const btnOpenWa = document.getElementById('btn-open-wa');
+        const btnTimerUnlock = document.getElementById('btn-wa-timer-unlock');
+        const timerDesc = document.getElementById('wa-timer-desc');
+        const codeInput = document.getElementById('wa-code-input');
+        const btnVerifyCode = document.getElementById('btn-verify-code');
+
+        let countdownStarted = false;
+        btnOpenWa.addEventListener('click', () => {
+            sfx.click();
+            if (countdownStarted) return;
+            countdownStarted = true;
+            let timeLeft = 10;
+            btnTimerUnlock.textContent = `⏳ Menunggu Bukti WA (${timeLeft}d)...`;
+            timerDesc.textContent = "Silakan kirim pesan/foto di WA, tombol lanjut akan terbuka otomatis!";
+
+            const iv = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    btnTimerUnlock.textContent = `⏳ Menunggu Bukti WA (${timeLeft}d)...`;
+                } else {
+                    clearInterval(iv);
+                    btnTimerUnlock.disabled = false;
+                    btnTimerUnlock.textContent = "✅ LANJUT MAIN (SUDAH WA)";
+                    btnTimerUnlock.classList.replace('bg-cyan-400', 'bg-emerald-400');
+                }
+            }, 1000);
+        });
+
+        btnTimerUnlock.addEventListener('click', () => {
+            if (!btnTimerUnlock.disabled) {
+                completeChallengeSuccess(30, "Bukti WA Terkirim! Misi Real-Life Selesai!");
+            }
+        });
+
+        btnVerifyCode.addEventListener('click', () => {
+            const val = codeInput.value.trim().toUpperCase();
+            const validCodes = ['MEONG', 'LOLOS', 'MANTAP', '1234', secretSessionCode];
+            if (validCodes.includes(val)) {
+                completeChallengeSuccess(35, "Kode Rahasia Valid! Misi WA Selesai!");
+            } else {
+                sfx.hurt();
+                codeInput.classList.add('border-rose-500');
+                codeInput.value = '';
+                codeInput.placeholder = 'Kode salah! Ketik MEONG';
+            }
+        });
+    }
+
+    /********************************************************************
+     * 6D. CATEGORY 2: MINIGAMES RECEH & SERU
+     ********************************************************************/
+    // 1. Tic-Tac-Toe vs Bot
+    function renderTicTacToe(container) {
+        let board = Array(9).fill('');
+        let gameOver = false;
+
+        container.innerHTML = `
+            <p class="text-center text-xs sm:text-sm text-slate-300 mb-3">
+                Kamu <b>🐱 (X)</b> lawan <b>🤖 Bot (O)</b>. Menang atau minimal Seri untuk lanjut!
+            </p>
+            <div id="ttt-grid" class="grid grid-cols-3 gap-2.5 max-w-[240px] mx-auto mb-2"></div>
+            <p id="ttt-status" class="text-center text-xs text-amber-300 font-bold mt-2">Giliranmu! Klik kotak kosong.</p>
+        `;
+
+        const gridEl = document.getElementById('ttt-grid');
+        const statusEl = document.getElementById('ttt-status');
+
+        const winLines = [
+            [0,1,2],[3,4,5],[6,7,8],
+            [0,3,6],[1,4,7],[2,5,8],
+            [0,4,8],[2,4,6]
+        ];
+
+        function checkWinner(b) {
+            for (const [a, c, d] of winLines) {
+                if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+            }
+            return b.includes('') ? null : 'DRAW';
+        }
+
+        function botMove() {
+            if (gameOver) return;
+            const empty = board.map((v, i) => v === '' ? i : null).filter(v => v !== null);
+            if (empty.length === 0) return;
+
+            // Try to win or block
+            let pick = null;
+            for (const sym of ['O', 'X']) {
+                for (const idx of empty) {
+                    board[idx] = sym;
+                    if (checkWinner(board) === sym) pick = idx;
+                    board[idx] = '';
+                    if (pick !== null) break;
+                }
+                if (pick !== null) break;
+            }
+            if (pick === null) {
+                pick = empty.includes(4) ? 4 : empty[Math.floor(Math.random() * empty.length)];
+            }
+            board[pick] = 'O';
+            sfx.click();
+            drawTTT();
+            evaluateTTT();
+        }
+
+        function evaluateTTT() {
+            const res = checkWinner(board);
+            if (res === 'X') {
+                gameOver = true;
+                completeChallengeSuccess(20, "Kamu Menang Tic-Tac-Toe!");
+            } else if (res === 'DRAW') {
+                gameOver = true;
+                completeChallengeSuccess(15, "Seri Lawan Bot! Kamu Lolos!");
+            } else if (res === 'O') {
+                gameOver = true;
+                sfx.hurt();
+                statusEl.textContent = "Bot Menang! Mengulang papan...";
+                setTimeout(() => renderTicTacToe(container), 1000);
+            }
+        }
+
+        function drawTTT() {
+            gridEl.innerHTML = '';
+            board.forEach((cell, i) => {
+                const btn = document.createElement('button');
+                btn.className = "pixel-btn h-16 sm:h-20 bg-slate-800 hover:bg-slate-700 rounded-2xl text-2xl sm:text-3xl flex items-center justify-center";
+                btn.textContent = cell === 'X' ? '🐱' : (cell === 'O' ? '🤖' : '');
+                btn.onclick = () => {
+                    if (gameOver || board[i] !== '') return;
+                    board[i] = 'X';
+                    sfx.click();
+                    drawTTT();
+                    evaluateTTT();
+                    if (!gameOver) setTimeout(botMove, 300);
+                };
+                gridEl.appendChild(btn);
+            });
+        }
+        drawTTT();
+    }
+
+    // 2. Rock Paper Scissors (Suit Jepang)
+    function renderRPSChallenge(container) {
+        let pScore = 0;
+        let bScore = 0;
+        const choices = [
+            { id: 'batu', icon: '✊', name: 'Batu' },
+            { id: 'gunting', icon: '✌️', name: 'Gunting' },
+            { id: 'kertas', icon: '✋', name: 'Kertas' }
+        ];
+
+        container.innerHTML = `
+            <div class="text-center mb-4">
+                <p class="text-xs text-slate-300 mb-2">Menangkan <b>2 Ronde</b> lawan Bot Kucing!</p>
+                <div class="inline-flex items-center gap-6 bg-slate-800 px-5 py-2 rounded-2xl border border-slate-700">
+                    <div>🐱 Kamu: <b id="rps-p" class="text-emerald-400 text-lg">0</b></div>
+                    <div class="text-slate-500">VS</div>
+                    <div>🤖 Bot: <b id="rps-b" class="text-rose-400 text-lg">0</b></div>
+                </div>
+            </div>
+            <div id="rps-arena" class="text-center text-3xl my-3 min-h-[48px]">🤜 ⚡ 🤛</div>
+            <div class="grid grid-cols-3 gap-3 max-w-sm mx-auto">
+                ${choices.map(c => `
+                    <button data-choice="${c.id}" class="rps-btn pixel-btn bg-slate-800 hover:bg-pink-500/30 border-pink-400 py-3 rounded-2xl flex flex-col items-center">
+                        <span class="text-3xl mb-1">${c.icon}</span>
+                        <span class="text-xs font-bold">${c.name}</span>
+                    </button>
+                `).join('')}
+            </div>
+        `;
+
+        const arena = document.getElementById('rps-arena');
+        container.querySelectorAll('.rps-btn').forEach(btn => {
+            btn.onclick = () => {
+                const pPick = choices.find(c => c.id === btn.dataset.choice);
+                const bPick = choices[Math.floor(Math.random() * choices.length)];
+                sfx.click();
+
+                let outcome = 'SERI!';
+                if (
+                    (pPick.id === 'batu' && bPick.id === 'gunting') ||
+                    (pPick.id === 'gunting' && bPick.id === 'kertas') ||
+                    (pPick.id === 'kertas' && bPick.id === 'batu')
+                ) {
+                    pScore++;
+                    outcome = 'KAMU MENANG RONDE! 🎉';
+                    sfx.coin();
+                } else if (pPick.id !== bPick.id) {
+                    bScore++;
+                    outcome = 'BOT MENANG RONDE! 🙀';
+                }
+
+                document.getElementById('rps-p').textContent = pScore;
+                document.getElementById('rps-b').textContent = bScore;
+                arena.innerHTML = `<span class="text-2xl">${pPick.icon} vs ${bPick.icon}</span><div class="text-xs font-bold text-amber-300 mt-1">${outcome}</div>`;
+
+                if (pScore >= 2) {
+                    completeChallengeSuccess(20, "Juara Suit Jepang! Lanjut Lari!");
+                } else if (bScore >= 2) {
+                    sfx.hurt();
+                    arena.innerHTML = `<div class="text-sm text-rose-400 font-bold">Bot menang 2x! Skor di-reset, ayo coba lagi!</div>`;
+                    pScore = 0;
+                    bScore = 0;
+                    document.getElementById('rps-p').textContent = 0;
+                    document.getElementById('rps-b').textContent = 0;
+                }
+            };
+        });
+    }
+
+    // 3. Reverse Word Typing
+    function renderReverseWord(container) {
+        const words = ['KUCING', 'ISTANA', 'LONCAT', 'MEONG', 'CATUR', 'BAKSO', 'BINTANG', 'PIXEL', 'KOMPUTER', 'PERMATA'];
+        const picked = words[Math.floor(Math.random() * words.length)];
+        const reversed = picked.split('').reverse().join('');
+
+        container.innerHTML = `
+            <div class="text-center">
+                <p class="text-xs text-slate-300 mb-2">Ketik kata di bawah ini secara <b>TERBALIK</b> (dari belakang ke depan):</p>
+                <div class="pixel-font text-2xl sm:text-3xl text-amber-300 bg-slate-800 py-4 px-6 rounded-2xl border-2 border-amber-400/50 inline-block mb-4 tracking-widest">
+                    ${picked}
+                </div>
+                <div class="max-w-xs mx-auto flex gap-2">
+                    <input id="rev-input" type="text" placeholder="Ketik kebalikannya..." autocomplete="off"
+                           class="w-full bg-slate-800 border-2 border-pink-400 rounded-xl px-3 py-2.5 text-center font-extrabold uppercase text-white outline-none">
+                    <button id="rev-submit" class="pixel-btn bg-pink-500 text-slate-950 font-bold px-4 rounded-xl">
+                        OK
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const input = document.getElementById('rev-input');
+        const submit = document.getElementById('rev-submit');
+        setTimeout(() => input.focus(), 100);
+
+        function checkAns() {
+            if (input.value.trim().toUpperCase() === reversed) {
+                completeChallengeSuccess(20, `Tepat Sekali! (${reversed})`);
+            } else {
+                sfx.hurt();
+                input.value = '';
+                input.placeholder = `Salah! Petunjuk: ${reversed[0]}...`;
+            }
+        }
+        submit.onclick = checkAns;
+        input.onkeydown = (e) => { if (e.key === 'Enter') checkAns(); };
+    }
+
+    // 4. Quick Math & Color Reflex
+    function renderColorMath(container) {
+        let step = 1;
+
+        function nextQuestion() {
+            const ops = ['+', '-', '×'];
+            const op = ops[Math.floor(Math.random() * ops.length)];
+            let a, b, correct;
+            if (op === '+') {
+                a = 5 + Math.floor(Math.random() * 15);
+                b = 4 + Math.floor(Math.random() * 14);
+                correct = a + b;
+            } else if (op === '-') {
+                a = 12 + Math.floor(Math.random() * 15);
+                b = 3 + Math.floor(Math.random() * 10);
+                correct = a - b;
+            } else {
+                a = 2 + Math.floor(Math.random() * 7);
+                b = 2 + Math.floor(Math.random() * 6);
+                correct = a * b;
+            }
+
+            const opts = Array.from(new Set([correct, correct + 2, correct - 2, correct + 5, correct - 1])).slice(0, 4).sort(() => Math.random() - 0.5);
+
+            container.innerHTML = `
+                <div class="text-center">
+                    <span class="text-xs text-cyan-300 font-bold">Soal Cepat ${step} / 3</span>
+                    <div class="pixel-font text-2xl sm:text-3xl text-white my-4 bg-slate-800 py-4 rounded-2xl border border-slate-700">
+                        ${a} ${op} ${b} = ?
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 max-w-xs mx-auto">
+                        ${opts.map(o => `
+                            <button data-ans="${o}" class="math-opt pixel-btn bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-extrabold text-lg">
+                                ${o}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            container.querySelectorAll('.math-opt').forEach(btn => {
+                btn.onclick = () => {
+                    if (Number(btn.dataset.ans) === correct) {
+                        sfx.coin();
+                        if (step >= 3) {
+                            completeChallengeSuccess(20, "Otak Encer! 3 Soal Dijawab Cepat!");
+                        } else {
+                            step++;
+                            nextQuestion();
+                        }
+                    } else {
+                        sfx.hurt();
+                        btn.classList.replace('bg-indigo-600', 'bg-rose-600');
+                    }
+                };
+            });
+        }
+        nextQuestion();
+    }
+
+    // 5. Memory Card Match (4x2 Grid)
+    function renderMemoryMatch(container) {
+        const icons = ['🐱', '🐟', '🧶', '👑'];
+        const deck = [...icons, ...icons].sort(() => Math.random() - 0.5);
+        let flippedIndices = [];
+        let matchedIndices = new Set();
+        let lockBoard = false;
+
+        container.innerHTML = `
+            <div class="text-center mb-3">
+                <p class="text-xs text-slate-300">Buka dan cocokkan <b>4 pasang kartu</b> kucing di bawah ini!</p>
+            </div>
+            <div id="mem-grid" class="grid grid-cols-4 gap-2.5 max-w-sm mx-auto"></div>
+        `;
+
+        const gridEl = document.getElementById('mem-grid');
+
+        function drawCards() {
+            gridEl.innerHTML = '';
+            deck.forEach((icon, idx) => {
+                const isRevealed = flippedIndices.includes(idx) || matchedIndices.has(idx);
+                const btn = document.createElement('button');
+                btn.className = `pixel-btn h-16 sm:h-20 rounded-2xl text-2xl sm:text-3xl flex items-center justify-center transition-all ${
+                    matchedIndices.has(idx)
+                        ? 'bg-emerald-600/40 border-emerald-400'
+                        : isRevealed
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'bg-slate-800 hover:bg-slate-700 text-pink-400'
+                }`;
+                btn.textContent = isRevealed ? icon : '❓';
+                btn.onclick = () => {
+                    if (lockBoard || isRevealed) return;
+                    sfx.click();
+                    flippedIndices.push(idx);
+                    drawCards();
+
+                    if (flippedIndices.length === 2) {
+                        lockBoard = true;
+                        const [i1, i2] = flippedIndices;
+                        if (deck[i1] === deck[i2]) {
+                            sfx.coin();
+                            matchedIndices.add(i1);
+                            matchedIndices.add(i2);
+                            flippedIndices = [];
+                            lockBoard = false;
+                            drawCards();
+                            if (matchedIndices.size === deck.length) {
+                                completeChallengeSuccess(25, "Daya Ingat Tajam! Semua Kartu Cocok!");
+                            }
+                        } else {
+                            setTimeout(() => {
+                                sfx.hurt();
+                                flippedIndices = [];
+                                lockBoard = false;
+                                drawCards();
+                            }, 550);
+                        }
+                    }
+                };
+                gridEl.appendChild(btn);
+            });
+        }
+        drawCards();
+    }
+
+    // 6. Whack-a-Slime (Gebuk Slime 3x3)
+    function renderWhackASlime(container) {
+        let hits = 0;
+        const targetHits = 8;
+        let timeLeft = 10;
+        let activeHole = -1;
+        let activeType = 'slime'; // 'slime' or 'cat'
+
+        container.innerHTML = `
+            <div class="flex items-center justify-between bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 mb-3 text-xs">
+                <div>🔨 Skor Gebuk: <b id="whack-hits" class="text-emerald-400 text-sm">0</b> / ${targetHits}</div>
+                <div>⏱️ Waktu: <b id="whack-time" class="text-amber-300 text-sm">${timeLeft}d</b></div>
+            </div>
+            <div id="whack-grid" class="grid grid-cols-3 gap-2.5 max-w-[260px] mx-auto"></div>
+            <p class="text-center text-[11px] text-slate-400 mt-2">Ketok <b>👾 Slime Ungu</b>! Jangan ketok 🐱 Kucing!</p>
+        `;
+
+        const gridEl = document.getElementById('whack-grid');
+        const hitsEl = document.getElementById('whack-hits');
+        const timeEl = document.getElementById('whack-time');
+
+        function drawHoles() {
+            gridEl.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const isUp = i === activeHole;
+                const btn = document.createElement('button');
+                btn.className = `pixel-btn h-16 sm:h-20 rounded-2xl text-2xl sm:text-3xl flex items-center justify-center ${
+                    isUp ? (activeType === 'slime' ? 'bg-purple-600' : 'bg-pink-500') : 'bg-slate-800'
+                }`;
+                btn.textContent = isUp ? (activeType === 'slime' ? '👾' : '🐱') : '🕳️';
+                btn.onmousedown = btn.ontouchstart = (e) => {
+                    e.preventDefault();
+                    if (i !== activeHole) return;
+                    if (activeType === 'slime') {
+                        hits++;
+                        hitsEl.textContent = hits;
+                        sfx.stomp();
+                        activeHole = -1;
+                        drawHoles();
+                        if (hits >= targetHits) {
+                            completeChallengeSuccess(25, "8 Slime Berhasil Digebuk!");
+                        }
+                    } else {
+                        sfx.hurt();
+                        hits = Math.max(0, hits - 1);
+                        hitsEl.textContent = hits;
+                        activeHole = -1;
+                        drawHoles();
+                    }
+                };
+                gridEl.appendChild(btn);
+            }
+        }
+
+        const popInterval = setInterval(() => {
+            activeHole = Math.floor(Math.random() * 9);
+            activeType = Math.random() < 0.82 ? 'slime' : 'cat';
+            drawHoles();
+        }, 560);
+
+        const timerInterval = setInterval(() => {
+            timeLeft--;
+            if (timeEl) timeEl.textContent = `${timeLeft}d`;
+            if (timeLeft <= 0) {
+                sfx.hurt();
+                timeLeft = 10;
+                hits = 0;
+                if (hitsEl) hitsEl.textContent = '0';
+                if (timeEl) timeEl.textContent = 'Ulang 10d!';
+            }
+        }, 1000);
+
+        activeChallengeCleanup = () => {
+            clearInterval(popInterval);
+            clearInterval(timerInterval);
+        };
+        drawHoles();
+    }
+
+    // 7. Simon Says / Urutan Warna (4 Pads)
+    function renderSimonSays(container) {
+        const pads = [
+            { id: 0, name: 'MERAH', bg: 'bg-rose-600', glow: 'bg-rose-300 scale-105', freq: 329.63 },
+            { id: 1, name: 'BIRU', bg: 'bg-sky-600', glow: 'bg-sky-300 scale-105', freq: 440.0 },
+            { id: 2, name: 'HIJAU', bg: 'bg-emerald-600', glow: 'bg-emerald-300 scale-105', freq: 554.37 },
+            { id: 3, name: 'KUNING', bg: 'bg-amber-500', glow: 'bg-amber-200 scale-105', freq: 659.25 }
+        ];
+        let sequence = [];
+        let userStep = 0;
+        let round = 1;
+        const maxRounds = 3; // Round 1 = 2 colors, Round 2 = 3 colors, Round 3 = 4 colors
+        let acceptingInput = false;
+
+        container.innerHTML = `
+            <div class="text-center mb-3">
+                <span id="simon-status" class="text-xs font-bold text-amber-300 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+                    Perhatikan urutan warna yang menyala! (Ronde 1/${maxRounds})
+                </span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 max-w-[240px] mx-auto">
+                ${pads.map(p => `
+                    <button id="simon-pad-${p.id}" data-id="${p.id}" class="simon-pad pixel-btn h-20 rounded-2xl ${p.bg} text-slate-950 font-extrabold text-xs transition-transform">
+                        ${p.name}
+                    </button>
+                `).join('')}
+            </div>
+        `;
+
+        const statusEl = document.getElementById('simon-status');
+        let timeouts = [];
+
+        function flashPad(id) {
+            const el = document.getElementById(`simon-pad-${id}`);
+            if (!el) return;
+            const padObj = pads[id];
+            sfx.playTone(padObj.freq, 'sine', 0.22, 0, 0.14);
+            el.className = `simon-pad pixel-btn h-20 rounded-2xl ${padObj.glow} text-slate-950 font-extrabold text-xs transition-transform`;
+            const t = setTimeout(() => {
+                if (el) el.className = `simon-pad pixel-btn h-20 rounded-2xl ${padObj.bg} text-slate-950 font-extrabold text-xs transition-transform`;
+            }, 260);
+            timeouts.push(t);
+        }
+
+        function startRound() {
+            acceptingInput = false;
+            userStep = 0;
+            sequence = [];
+            const seqLen = round + 1;
+            for (let i = 0; i < seqLen; i++) {
+                sequence.push(Math.floor(Math.random() * 4));
+            }
+            if (statusEl) statusEl.textContent = `👀 Hafalkan ${seqLen} Kedipan Warna... (Ronde ${round}/${maxRounds})`;
+
+            sequence.forEach((padId, idx) => {
+                const t = setTimeout(() => {
+                    flashPad(padId);
+                    if (idx === sequence.length - 1) {
+                        const t2 = setTimeout(() => {
+                            acceptingInput = true;
+                            if (statusEl) statusEl.textContent = `👆 Giliranmu! Klik sesuai urutan (${seqLen} warna)!`;
+                        }, 360);
+                        timeouts.push(t2);
+                    }
+                }, (idx + 1) * 520);
+                timeouts.push(t);
+            });
+        }
+
+        container.querySelectorAll('.simon-pad').forEach(btn => {
+            btn.onclick = () => {
+                if (!acceptingInput) return;
+                const id = Number(btn.dataset.id);
+                flashPad(id);
+
+                if (id === sequence[userStep]) {
+                    userStep++;
+                    if (userStep === sequence.length) {
+                        acceptingInput = false;
+                        if (round >= maxRounds) {
+                            completeChallengeSuccess(25, "Memori Warna Sempurna!");
+                        } else {
+                            round++;
+                            const t = setTimeout(startRound, 600);
+                            timeouts.push(t);
+                        }
+                    }
+                } else {
+                    acceptingInput = false;
+                    sfx.hurt();
+                    if (statusEl) statusEl.textContent = "❌ Salah urutan! Mengulang urutan baru...";
+                    const t = setTimeout(startRound, 900);
+                    timeouts.push(t);
+                }
+            };
+        });
+
+        activeChallengeCleanup = () => {
+            timeouts.forEach(t => clearTimeout(t));
+        };
+        startRound();
+    }
+
+    // 8. Timing Bar (Stop di Zona Hijau 3x)
+    function renderTimingBar(container) {
+        let hits = 0;
+        const targetHits = 3;
+        let pos = 50;
+        let dir = 1;
+        let speed = 2.1;
+        let animId = null;
+
+        container.innerHTML = `
+            <div class="text-center mb-3">
+                <p class="text-xs text-slate-300 mb-1">Tekan tombol <b>STOP!</b> saat jarum berada di <b>Zona Hijau</b>!</p>
+                <span id="timing-score" class="pixel-font text-xs text-emerald-400">Berhasil: 0 / ${targetHits}</span>
+            </div>
+            <div class="relative w-full h-10 bg-slate-800 rounded-2xl border-4 border-slate-700 overflow-hidden my-4">
+                <!-- Green Target Zone (36% to 64%) -->
+                <div class="absolute top-0 bottom-0 left-[36%] w-[28%] bg-emerald-500/45 border-x-2 border-emerald-300 flex items-center justify-center text-[10px] font-bold text-emerald-200">
+                    TARGET
+                </div>
+                <!-- Moving Cursor -->
+                <div id="timing-cursor" class="absolute top-0 bottom-0 w-3 bg-amber-300 shadow-lg -translate-x-1/2" style="left: 50%;"></div>
+            </div>
+            <button id="btn-timing-stop" class="pixel-btn w-full bg-pink-500 hover:bg-pink-400 text-slate-950 font-extrabold py-3 rounded-2xl text-base">
+                🛑 STOP SEKARANG!
+            </button>
+        `;
+
+        const cursorEl = document.getElementById('timing-cursor');
+        const scoreEl = document.getElementById('timing-score');
+        const stopBtn = document.getElementById('btn-timing-stop');
+
+        function stepBar() {
+            pos += dir * speed;
+            if (pos >= 98) { pos = 98; dir = -1; }
+            if (pos <= 2) { pos = 2; dir = 1; }
+            if (cursorEl) cursorEl.style.left = `${pos}%`;
+            animId = requestAnimationFrame(stepBar);
+        }
+
+        stopBtn.onclick = () => {
+            if (pos >= 35 && pos <= 65) {
+                hits++;
+                sfx.coin();
+                speed += 0.55;
+                scoreEl.textContent = `Berhasil: ${hits} / ${targetHits} 🔥`;
+                if (hits >= targetHits) {
+                    completeChallengeSuccess(25, "Refleks Sniper! 3x Tepat di Zona Hijau!");
+                }
+            } else {
+                sfx.hurt();
+                hits = 0;
+                speed = 2.1;
+                scoreEl.textContent = `Meleset! Reset: 0 / ${targetHits}`;
+            }
+        };
+
+        activeChallengeCleanup = () => {
+            if (animId) cancelAnimationFrame(animId);
+        };
+        animId = requestAnimationFrame(stepBar);
+    }
+
+    // 9. Minesweeper Mini (4x4 - Clear 5 Safe Tiles)
+    function renderMinesweeperMini(container) {
+        const size = 4;
+        const totalCells = size * size;
+        const bombCount = 3;
+        const targetSafe = 5;
+        let bombs = new Set();
+        let revealed = new Set();
+
+        while (bombs.size < bombCount) {
+            bombs.add(Math.floor(Math.random() * totalCells));
+        }
+
+        function countAdjBombs(idx) {
+            const r = Math.floor(idx / size);
+            const c = idx % size;
+            let cnt = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                        if (bombs.has(nr * size + nc)) cnt++;
+                    }
+                }
+            }
+            return cnt;
+        }
+
+        container.innerHTML = `
+            <div class="flex items-center justify-between bg-slate-800 px-3 py-2 rounded-xl border border-slate-700 mb-3 text-xs">
+                <span>💣 Total Bom: <b class="text-rose-400">${bombCount}</b></span>
+                <span>🛡️ Petak Aman Dibuka: <b id="mine-safe" class="text-emerald-400">0</b> / ${targetSafe}</span>
+            </div>
+            <div id="mine-grid" class="grid grid-cols-4 gap-2 max-w-[240px] mx-auto"></div>
+            <p class="text-center text-[11px] text-slate-400 mt-2">Angka menunjukkan jumlah bom di sekeliling petak tersebut.</p>
+        `;
+
+        const gridEl = document.getElementById('mine-grid');
+        const safeEl = document.getElementById('mine-safe');
+
+        function drawMineGrid(revealAll = false) {
+            gridEl.innerHTML = '';
+            for (let i = 0; i < totalCells; i++) {
+                const isOpen = revealed.has(i) || revealAll;
+                const isBomb = bombs.has(i);
+                const adj = countAdjBombs(i);
+
+                const btn = document.createElement('button');
+                btn.className = `pixel-btn h-12 sm:h-14 rounded-xl font-extrabold text-sm flex items-center justify-center ${
+                    isOpen
+                        ? (isBomb ? 'bg-rose-600 text-white' : 'bg-slate-700 text-amber-300')
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-400'
+                }`;
+                if (isOpen) {
+                    btn.textContent = isBomb ? '💣' : (adj > 0 ? adj : '🐾');
+                } else {
+                    btn.textContent = '';
+                }
+
+                btn.onclick = () => {
+                    if (revealed.has(i) || revealAll) return;
+                    if (isBomb) {
+                        sfx.hurt();
+                        drawMineGrid(true);
+                        setTimeout(() => renderMinesweeperMini(container), 1000);
+                    } else {
+                        sfx.click();
+                        revealed.add(i);
+                        safeEl.textContent = revealed.size;
+                        drawMineGrid(false);
+                        if (revealed.size >= targetSafe) {
+                            completeChallengeSuccess(25, "5 Petak Aman Terbuka Tanpa Meledak!");
+                        }
+                    }
+                };
+                gridEl.appendChild(btn);
+            }
+        }
+        drawMineGrid();
+    }
+
+    // 10. Stroop Test (Tebak Warna Teksnya, Bukan Tulisannya!)
+    function renderStroopTest(container) {
+        const COLORS = [
+            { id: 'MERAH', label: 'MERAH', hex: '#f43f5e', btnClass: 'bg-rose-500 hover:bg-rose-400' },
+            { id: 'BIRU', label: 'BIRU', hex: '#38bdf8', btnClass: 'bg-sky-500 hover:bg-sky-400' },
+            { id: 'HIJAU', label: 'HIJAU', hex: '#4ade80', btnClass: 'bg-emerald-500 hover:bg-emerald-400' },
+            { id: 'KUNING', label: 'KUNING', hex: '#facc15', btnClass: 'bg-amber-400 hover:bg-amber-300' }
+        ];
+        let score = 0;
+        const target = 4;
+
+        function nextStroop() {
+            const wordObj = COLORS[Math.floor(Math.random() * COLORS.length)];
+            // Pick ink color different from word text most of the time
+            const otherColors = COLORS.filter(c => c.id !== wordObj.id);
+            const inkObj = otherColors[Math.floor(Math.random() * otherColors.length)];
+
+            container.innerHTML = `
+                <div class="text-center">
+                    <p class="text-xs text-slate-300 mb-1">Klik tombol sesuai <b>WARNA TINTA</b> hurufnya, <u>bukan</u> bacaannya! (${score}/${target})</p>
+                    <div class="bg-slate-950 border-2 border-slate-700 rounded-2xl py-5 my-3">
+                        <span class="pixel-font text-2xl sm:text-3xl font-extrabold tracking-wider" style="color: ${inkObj.hex};">
+                            ${wordObj.label}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5 max-w-xs mx-auto">
+                        ${COLORS.map(c => `
+                            <button data-color="${c.id}" class="stroop-btn pixel-btn ${c.btnClass} text-slate-950 font-extrabold py-2.5 rounded-xl text-xs sm:text-sm">
+                                ${c.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            container.querySelectorAll('.stroop-btn').forEach(btn => {
+                btn.onclick = () => {
+                    if (btn.dataset.color === inkObj.id) {
+                        score++;
+                        sfx.coin();
+                        if (score >= target) {
+                            completeChallengeSuccess(25, "Fokus Mata & Otak Luar Biasa!");
+                        } else {
+                            nextStroop();
+                        }
+                    } else {
+                        sfx.hurt();
+                        score = Math.max(0, score - 1);
+                        nextStroop();
+                    }
+                };
+            });
+        }
+        nextStroop();
+    }
+
+    // 11. Pompa Balon / Mash Button
+    function renderMashBalloon(container) {
+        let power = 20;
+        let won = false;
+
+        container.innerHTML = `
+            <div class="text-center">
+                <p class="text-xs text-slate-300 mb-2">Spam klik tombol <b>POMPA!</b> atau tekan <b>SPASI</b> cepat-cepat sampai 100%!</p>
+                <div class="h-32 flex items-center justify-center my-2">
+                    <div id="balloon-emoji" class="transition-transform duration-75 text-5xl">🎈</div>
+                </div>
+                <div class="w-full bg-slate-800 h-6 rounded-full border-2 border-slate-700 overflow-hidden mb-4">
+                    <div id="balloon-bar" class="h-full bg-gradient-to-r from-pink-500 to-amber-400 transition-all duration-75" style="width: 20%;"></div>
+                </div>
+                <button id="btn-mash-pump" class="pixel-btn w-full bg-amber-400 active:bg-amber-300 text-slate-950 font-extrabold py-3.5 rounded-2xl text-base">
+                    💨 POMPA BALON! (KLIK CEPAT / SPASI)
+                </button>
+            </div>
+        `;
+
+        const barEl = document.getElementById('balloon-bar');
+        const emojiEl = document.getElementById('balloon-emoji');
+        const pumpBtn = document.getElementById('btn-mash-pump');
+
+        function updateVisual() {
+            if (barEl) barEl.style.width = `${power}%`;
+            if (emojiEl) {
+                const scale = 0.8 + (power / 100) * 1.4;
+                emojiEl.style.transform = `scale(${scale.toFixed(2)})`;
+            }
+        }
+
+        function pump() {
+            if (won) return;
+            power = Math.min(100, power + 8.5);
+            sfx.click();
+            updateVisual();
+            if (power >= 100) {
+                won = true;
+                if (emojiEl) emojiEl.textContent = '💥🎉';
+                completeChallengeSuccess(20, "DOR! Balon Meledak Penuh Semangat!");
+            }
+        }
+
+        pumpBtn.onclick = pump;
+        const keyHandler = (e) => {
+            if (e.code === 'Space' && !won) {
+                e.preventDefault();
+                pump();
+            }
+        };
+        window.addEventListener('keydown', keyHandler);
+
+        const drainInterval = setInterval(() => {
+            if (!won && power > 10) {
+                power = Math.max(5, power - 2.2);
+                updateVisual();
+            }
+        }, 120);
+
+        activeChallengeCleanup = () => {
+            clearInterval(drainInterval);
+            window.removeEventListener('keydown', keyHandler);
+        };
+    }
+
+    // 12. Flappy Neko Mini (Lewati 5 Pipa di Mini Canvas)
+    function renderFlappyNeko(container) {
+        const targetPipes = 5;
+        container.innerHTML = `
+            <div class="flex items-center justify-between bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 mb-2 text-xs">
+                <span>🐱 Klik / Spasi untuk Terbang</span>
+                <span>Pipa Terlewati: <b id="flappy-score" class="text-emerald-400">0</b> / ${targetPipes}</span>
+            </div>
+            <div class="relative w-full max-w-[340px] h-[200px] mx-auto bg-sky-950 border-4 border-slate-700 rounded-2xl overflow-hidden cursor-pointer" id="flappy-box">
+                <canvas id="flappy-canvas" width="340" height="200"></canvas>
+            </div>
+        `;
+
+        const fCanvas = document.getElementById('flappy-canvas');
+        const fCtx = fCanvas.getContext('2d');
+        const scoreEl = document.getElementById('flappy-score');
+        const boxEl = document.getElementById('flappy-box');
+
+        let bird = { x: 60, y: 90, vy: 0, r: 12 };
+        let pipes = [];
+        let frame = 0;
+        let passed = 0;
+        let animId = null;
+        let finished = false;
+
+        function spawnPipe() {
+            const gap = 74;
+            const topH = 22 + Math.random() * (fCanvas.height - gap - 44);
+            pipes.push({ x: fCanvas.width + 10, topH, gap, w: 34, counted: false });
+        }
+        spawnPipe();
+
+        function flap() {
+            if (finished) return;
+            bird.vy = -4.8;
+            sfx.jump();
+        }
+
+        boxEl.onmousedown = boxEl.ontouchstart = (e) => {
+            e.preventDefault();
+            flap();
+        };
+        const keyHandler = (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+                e.preventDefault();
+                flap();
+            }
+        };
+        window.addEventListener('keydown', keyHandler);
+
+        function resetFlappy() {
+            sfx.hurt();
+            bird.y = 90;
+            bird.vy = 0;
+            pipes = [];
+            passed = 0;
+            frame = 0;
+            if (scoreEl) scoreEl.textContent = '0';
+            spawnPipe();
+        }
+
+        function loopFlappy() {
+            if (finished) return;
+            frame++;
+            if (frame % 78 === 0) spawnPipe();
+
+            bird.vy += 0.24;
+            bird.y += bird.vy;
+
+            // Sky background
+            fCtx.fillStyle = '#0f172a';
+            fCtx.fillRect(0, 0, fCanvas.width, fCanvas.height);
+
+            // Update & Draw Pipes
+            for (const p of pipes) {
+                p.x -= 2.2;
+                fCtx.fillStyle = '#22c55e';
+                fCtx.fillRect(p.x, 0, p.w, p.topH);
+                fCtx.fillRect(p.x, p.topH + p.gap, p.w, fCanvas.height - (p.topH + p.gap));
+
+                // Collision check
+                if (bird.x + bird.r > p.x && bird.x - bird.r < p.x + p.w) {
+                    if (bird.y - bird.r < p.topH || bird.y + bird.r > p.topH + p.gap) {
+                        resetFlappy();
+                        animId = requestAnimationFrame(loopFlappy);
+                        return;
+                    }
+                }
+
+                if (!p.counted && p.x + p.w < bird.x) {
+                    p.counted = true;
+                    passed++;
+                    sfx.coin();
+                    if (scoreEl) scoreEl.textContent = passed;
+                    if (passed >= targetPipes) {
+                        finished = true;
+                        completeChallengeSuccess(30, "Flappy Neko Master! 5 Pipa Terlewati!");
+                        return;
+                    }
+                }
+            }
+
+            if (bird.y > fCanvas.height - 6 || bird.y < 6) {
+                resetFlappy();
+            }
+
+            // Draw Cute Mini Neko Head
+            fCtx.fillStyle = '#f472b6';
+            fCtx.fillRect(bird.x - 12, bird.y - 12, 24, 24);
+            fCtx.fillStyle = '#ffffff';
+            fCtx.fillRect(bird.x + 2, bird.y - 6, 5, 5);
+
+            animId = requestAnimationFrame(loopFlappy);
+        }
+
+        activeChallengeCleanup = () => {
+            finished = true;
+            if (animId) cancelAnimationFrame(animId);
+            window.removeEventListener('keydown', keyHandler);
+        };
+        animId = requestAnimationFrame(loopFlappy);
+    }
+
+    // 13. Urutkan Angka Cepat (1 sampai 6)
+    function renderNumberOrder(container) {
+        let nextNum = 1;
+        const maxNum = 6;
+        // Create 9 slots with numbers 1..6 placed randomly
+        const slots = [1, 2, 3, 4, 5, 6, null, null, null].sort(() => Math.random() - 0.5);
+
+        container.innerHTML = `
+            <div class="text-center mb-3">
+                <p class="text-xs text-slate-300">Klik angka berurutan dari <b>1 sampai 6</b> secepat mungkin!</p>
+                <span id="num-order-status" class="text-xs font-bold text-amber-300">Cari Angka: 1</span>
+            </div>
+            <div id="num-order-grid" class="grid grid-cols-3 gap-2.5 max-w-[240px] mx-auto"></div>
+        `;
+
+        const gridEl = document.getElementById('num-order-grid');
+        const statusEl = document.getElementById('num-order-status');
+
+        function drawNumGrid() {
+            gridEl.innerHTML = '';
+            slots.forEach((val) => {
+                const btn = document.createElement('button');
+                if (val === null || val < nextNum) {
+                    btn.className = "h-14 sm:h-16 rounded-2xl bg-slate-800/40 border-2 border-slate-800 text-emerald-400 font-bold text-lg flex items-center justify-center";
+                    btn.textContent = val !== null ? '✓' : '';
+                    btn.disabled = true;
+                } else {
+                    btn.className = "pixel-btn h-14 sm:h-16 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white pixel-font text-lg flex items-center justify-center";
+                    btn.textContent = val;
+                    btn.onclick = () => {
+                        if (val === nextNum) {
+                            sfx.coin();
+                            nextNum++;
+                            if (nextNum > maxNum) {
+                                drawNumGrid();
+                                completeChallengeSuccess(20, "Urutan Angka 1-6 Selesai Cepat!");
+                            } else {
+                                statusEl.textContent = `Cari Angka: ${nextNum}`;
+                                drawNumGrid();
+                            }
+                        } else {
+                            sfx.hurt();
+                            statusEl.textContent = `Salah! Klik angka ${nextNum} dulu!`;
+                        }
+                    };
+                }
+                gridEl.appendChild(btn);
+            });
+        }
+        drawNumGrid();
+    }
+
+    /********************************************************************
+     * 7. INPUT LISTENERS & INITIALIZATION
+     ********************************************************************/
+    window.addEventListener('keydown', (e) => {
+        if (gameState.inChallenge) return;
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+        if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') {
+            keys.jump = true;
+            e.preventDefault();
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+        if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.jump = false;
+    });
+
+    // Touch / Mouse Hold Helper for On-Screen Buttons
+    function bindHoldButton(btnId, keyName) {
+        const btn = document.getElementById(btnId);
+        const start = (e) => { e.preventDefault(); keys[keyName] = true; };
+        const end = (e) => { e.preventDefault(); keys[keyName] = false; };
+        btn.addEventListener('mousedown', start);
+        btn.addEventListener('mouseup', end);
+        btn.addEventListener('mouseleave', end);
+        btn.addEventListener('touchstart', start, { passive: false });
+        btn.addEventListener('touchend', end, { passive: false });
+    }
+    bindHoldButton('btn-left', 'left');
+    bindHoldButton('btn-right', 'right');
+    bindHoldButton('btn-jump', 'jump');
+
+    // Start Game Button
+    document.getElementById('btn-start-game').addEventListener('click', () => {
+        sfx.init();
+        sfx.mysteryHit();
+        document.getElementById('intro-modal').classList.add('hidden');
+        gameState.paused = false;
+        showToast("Sundul Balok [?] di atas untuk mulai Challenge!", "🐾");
+    });
+
+    // Sound Toggle
+    document.getElementById('btn-sound').addEventListener('click', () => {
+        sfx.enabled = !sfx.enabled;
+        const icon = document.getElementById('sound-icon');
+        icon.className = sfx.enabled ? 'fas fa-volume-up' : 'fas fa-volume-mute text-rose-400';
+    });
+
+    // Reroll Challenge Button inside Modal
+    document.getElementById('btn-reroll-challenge').addEventListener('click', () => {
+        sfx.click();
+        triggerMysteryChallenge(gameState.activeMysteryBlock, null);
+    });
+
+    // Top Bar Manual Challenge Selector (For instant testing of any mode)
+    document.getElementById('btn-trigger-test').addEventListener('click', () => {
+        const sel = document.getElementById('test-challenge-select').value;
+        sfx.mysteryHit();
+        triggerMysteryChallenge(null, sel || null);
+    });
+
+    // Main Animation Loop
+    function gameLoop() {
+        updatePlatformer();
+        drawGame();
+        requestAnimationFrame(gameLoop);
+    }
+
+    window.onload = function () {
+        resizeCanvas();
+        cat.y = getGroundY() - cat.h;
+        initScenery();
+        generateWorldChunk();
+        updateHUD();
+        gameLoop();
+    };
+    </script>
+</body>
+</html>

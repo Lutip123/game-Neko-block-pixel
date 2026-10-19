@@ -26,7 +26,7 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #12101b;
+            background-color: #0b0914;
             font-family: var(--ui-font);
             overflow: hidden;
             touch-action: none;
@@ -34,18 +34,35 @@
         .pixel-font {
             font-family: var(--pixel-font);
         }
-        /* Retro Arcade Frame & Scanlines */
+        /* CRT Scanline Overlay */
+        .crt-overlay {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.22) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.03),
+                rgba(0, 255, 0, 0.01),
+                rgba(0, 0, 255, 0.03)
+            );
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+        /* Retro Arcade Frame & Buttons */
         .pixel-border {
             border: 4px solid #1e1b2e;
             box-shadow: 0 6px 0 #1e1b2e, inset 0 -4px 0 rgba(0,0,0,0.2);
         }
         .pixel-btn {
             border: 3px solid #1e1b2e;
-            box-shadow: 0 5px 0 #1e1b2e;
-            transition: transform 0.08s, box-shadow 0.08s;
+            box-shadow: 0 4px 0 #1e1b2e;
+            transition: transform 0.08s, box-shadow 0.08s, filter 0.15s;
+        }
+        .pixel-btn:hover:not(:disabled) {
+            filter: brightness(1.06);
         }
         .pixel-btn:active:not(:disabled) {
-            transform: translateY(4px);
+            transform: translateY(3px);
             box-shadow: 0 1px 0 #1e1b2e;
         }
         .pixel-btn:disabled {
@@ -66,7 +83,7 @@
             grid-template-rows: repeat(8, 1fr);
             aspect-ratio: 1 / 1;
             width: 100%;
-            max-width: 360px;
+            max-width: 340px;
             border: 4px solid #2d1b0e;
             box-shadow: 0 8px 0 #1a0f07;
             margin: 0 auto;
@@ -75,7 +92,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(1.3rem, 5vw, 2.1rem);
+            font-size: clamp(1.25rem, 4.8vw, 2rem);
             cursor: pointer;
             position: relative;
             transition: background-color 0.15s;
@@ -115,102 +132,189 @@
             50% { transform: translateY(-6px); }
         }
         .animate-float {
-            animation: floatSlow 2.2s ease-in-out infinite;
+            animation: floatSlow 2.4s ease-in-out infinite;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 12px rgba(244, 114, 182, 0.7), 0 4px 0 #1e1b2e; }
+            50% { box-shadow: 0 0 24px rgba(251, 191, 36, 0.95), 0 4px 0 #1e1b2e; }
+        }
+        .vip-glow {
+            animation: pulseGlow 1.6s infinite;
         }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col justify-between bg-slate-950 text-white select-none overflow-hidden">
+<body class="h-screen w-screen flex flex-col justify-between bg-slate-950 text-white select-none overflow-hidden relative">
 
-    <!-- TOP HUD & DEBUG BAR -->
-    <header class="w-full bg-slate-900/95 border-b-4 border-slate-800 px-3 py-2 flex flex-wrap items-center justify-between gap-2 z-20">
-        <!-- Left Stats -->
-        <div class="flex items-center gap-2 sm:gap-4 flex-wrap">
-            <div class="flex items-center gap-1.5 bg-pink-500/20 border-2 border-pink-400 rounded-xl px-2.5 py-1">
-                <span class="text-lg">🐱</span>
+    <!-- CRT Scanline Layer (Toggleable) -->
+    <div id="crt-layer" class="crt-overlay fixed inset-0 z-30 hidden"></div>
+
+    <!-- TOP IMMERSIVE ARCADE HUD & NAVIGATION BAR -->
+    <header class="w-full bg-slate-900/95 border-b-4 border-slate-800 px-2.5 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 z-20 shadow-lg">
+        <!-- Left Stats & Brand -->
+        <div class="flex items-center gap-1.5 sm:gap-2.5 flex-wrap">
+            <!-- Mini Brand Pill -->
+            <div class="hidden xl:flex items-center gap-2 bg-gradient-to-r from-pink-500/20 to-amber-500/20 border-2 border-pink-400/60 rounded-xl px-2.5 py-1 mr-1">
+                <span class="text-base">🐾</span>
+                <span class="pixel-font text-[10px] text-pink-300 tracking-tight">NEKO-WORLD</span>
+            </div>
+
+            <!-- Lives -->
+            <div class="flex items-center gap-1.5 bg-pink-500/20 border-2 border-pink-400 rounded-xl px-2.5 py-1" title="Nyawa Kucing Kotak">
+                <span class="text-sm sm:text-base">🐱</span>
                 <span class="pixel-font text-[10px] sm:text-xs text-pink-300" id="hud-lives">❤️❤️❤️</span>
             </div>
-            <div class="flex items-center gap-1.5 bg-amber-500/20 border-2 border-amber-400 rounded-xl px-2.5 py-1">
+
+            <!-- Coins -->
+            <div class="flex items-center gap-1.5 bg-amber-500/20 border-2 border-amber-400 rounded-xl px-2.5 py-1" title="Koin Terkumpul">
                 <span class="text-sm">🪙</span>
                 <span class="pixel-font text-[10px] sm:text-xs text-amber-300" id="hud-coins">0</span>
             </div>
-            <div class="flex items-center gap-1.5 bg-cyan-500/20 border-2 border-cyan-400 rounded-xl px-2.5 py-1">
+
+            <!-- Distance -->
+            <div class="flex items-center gap-1.5 bg-cyan-500/20 border-2 border-cyan-400 rounded-xl px-2.5 py-1" title="Jarak Petualangan Tanpa Ujung">
                 <span class="text-sm">🏃</span>
                 <span class="pixel-font text-[10px] sm:text-xs text-cyan-300"><span id="hud-dist">0</span>m</span>
             </div>
-            <div class="flex items-center gap-1.5 bg-emerald-500/20 border-2 border-emerald-400 rounded-xl px-2.5 py-1">
+
+            <!-- Completed Missions -->
+            <div class="flex items-center gap-1.5 bg-emerald-500/20 border-2 border-emerald-400 rounded-xl px-2.5 py-1" title="Total Challenge Selesai">
                 <span class="text-sm">🏆</span>
                 <span class="pixel-font text-[10px] sm:text-xs text-emerald-300"><span id="hud-challenges">0</span> Misi</span>
             </div>
+
+            <!-- 3x Streak Meter for Secret PAP/VN Reward -->
+            <button id="btn-streak-hud" class="pixel-btn flex items-center gap-1.5 bg-rose-500/25 hover:bg-rose-500/40 border-2 border-rose-400 rounded-xl px-2.5 py-1 cursor-pointer transition-all" title="Selesaikan 3 Challenge berturut-turut untuk Bonus Rahasia PAP/VN Cium!">
+                <span class="text-sm">🔥</span>
+                <span class="pixel-font text-[10px] sm:text-xs text-rose-300">Streak: <span id="hud-streak">0</span>/3</span>
+            </button>
+
+            <!-- Unlocked VIP Secret Bonus Button (Appears when unlocked or found) -->
+            <button id="btn-vip-bonus" class="hidden pixel-btn vip-glow bg-gradient-to-r from-pink-500 to-amber-400 text-slate-950 font-extrabold text-xs px-3 py-1 rounded-xl items-center gap-1.5">
+                <span>💋</span>
+                <span>KLAIM PAP / VN CIUM!</span>
+            </button>
         </div>
 
-        <!-- Right Controls: Audio & Quick Challenge Trigger (For testing or instant fun) -->
-        <div class="flex items-center gap-2">
-            <select id="test-challenge-select" class="bg-slate-800 text-amber-300 border-2 border-amber-400 rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer max-w-[180px] sm:max-w-xs">
-                <option value="">🎲 Tes / Pilih Challenge...</option>
-                <option value="ROMANTIC_MSG">💌 0. Pesan Romantis Spesial (WA)</option>
-                <option value="CHESS_PUZZLE">♟️ 1. Puzzle Catur (Mate in 1)</option>
-                <option value="CHESS_FULL">👑 2. Full Catur 8x8 vs Bot</option>
-                <option value="TICTACTOE">❌ 3. Tic-Tac-Toe vs Bot Licik</option>
-                <option value="RPS">✌️ 4. Suit Jepang (Best of 3)</option>
-                <option value="REVERSE_WORD">🔤 5. Ketik Kata Terbalik</option>
-                <option value="COLOR_MATH">🧮 6. Hitung Cepat Matematika</option>
-                <option value="MEMORY_MATCH">🧠 7. Memory Card Match (4x2)</option>
-                <option value="WHACK_SLIME">🔨 8. Gebuk Slime (Whack-a-Slime)</option>
-                <option value="SIMON_SAYS">🎨 9. Simon Says (Urutan Warna)</option>
-                <option value="TIMING_BAR">🎯 10. Timing Bar (Zona Hijau)</option>
-                <option value="MINESWEEPER">💣 11. Minesweeper Mini (4x4)</option>
-                <option value="STROOP_TEST">🌈 12. Stroop Test (Warna Teks)</option>
-                <option value="MASH_BALLOON">🎈 13. Pompa Balon (Spam Klik)</option>
-                <option value="FLAPPY_NEKO">🐍 14. Flappy Neko Mini (Lewati 5 Pipa)</option>
-                <option value="NUMBER_ORDER">🔢 15. Urutkan Angka Cepat (1-6)</option>
-                <option value="WHATSAPP">📱 16. Real-Life Challenge (WA)</option>
-            </select>
-            <button id="btn-trigger-test" class="pixel-btn bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs px-2.5 py-1 rounded-lg">
-                Buka!
+        <!-- Right Controls: Love Vault, Quick Challenge Selector, BGM, SFX, CRT, Fullscreen -->
+        <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <!-- Love Letter Vault Button -->
+            <button id="btn-love-vault" class="pixel-btn bg-pink-500 hover:bg-pink-400 text-slate-950 font-extrabold text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1.5" title="Koleksi Surat Cinta & Gombalan">
+                <span>💌</span>
+                <span class="hidden sm:inline">Surat Cinta</span>
+                <span id="vault-count-badge" class="bg-slate-950 text-pink-300 px-1.5 py-0.2 rounded-full text-[10px]">3</span>
             </button>
-            <button id="btn-sound" class="pixel-btn bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-2.5 py-1 rounded-lg" title="Suara Efek">
+
+            <!-- Quick Challenge Selector -->
+            <div class="flex items-center gap-1">
+                <select id="test-challenge-select" class="bg-slate-800 text-amber-300 border-2 border-amber-400 rounded-xl px-2 py-1 text-xs font-bold outline-none cursor-pointer max-w-[145px] sm:max-w-[200px]">
+                    <option value="">🎲 Pilih Challenge...</option>
+                    <option value="ROMANTIC_MSG">💌 0. Pesan Romantis Spesial (WA)</option>
+                    <option value="CHESS_PUZZLE">♟️ 1. Puzzle Catur (Mate in 1)</option>
+                    <option value="CHESS_FULL">👑 2. Full Catur 8x8 vs Bot</option>
+                    <option value="TICTACTOE">❌ 3. Tic-Tac-Toe vs Bot Licik</option>
+                    <option value="RPS">✌️ 4. Suit Jepang (Best of 3)</option>
+                    <option value="REVERSE_WORD">🔤 5. Ketik Kata Terbalik</option>
+                    <option value="COLOR_MATH">🧮 6. Hitung Cepat Matematika</option>
+                    <option value="MEMORY_MATCH">🧠 7. Memory Card Match (4x2)</option>
+                    <option value="WHACK_SLIME">🔨 8. Gebuk Slime (Whack-a-Slime)</option>
+                    <option value="SIMON_SAYS">🎨 9. Simon Says (Urutan Warna)</option>
+                    <option value="TIMING_BAR">🎯 10. Timing Bar (Zona Hijau)</option>
+                    <option value="MINESWEEPER">💣 11. Minesweeper Mini (4x4)</option>
+                    <option value="STROOP_TEST">🌈 12. Stroop Test (Warna Teks)</option>
+                    <option value="MASH_BALLOON">🎈 13. Pompa Balon (Spam Klik)</option>
+                    <option value="FLAPPY_NEKO">🐍 14. Flappy Neko Mini (5 Pipa)</option>
+                    <option value="NUMBER_ORDER">🔢 15. Urutkan Angka Cepat (1-6)</option>
+                    <option value="WHATSAPP">📱 16. Real-Life Challenge (WA)</option>
+                    <option value="SECRET_BONUS">💋 17. [VIP] Klaim PAP / VN Cium</option>
+                </select>
+                <button id="btn-trigger-test" class="pixel-btn bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs px-2.5 py-1.5 rounded-xl">
+                    Buka!
+                </button>
+            </div>
+
+            <!-- BGM Music Toggle -->
+            <button id="btn-bgm" class="pixel-btn bg-purple-600 hover:bg-purple-500 text-white text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1" title="Musik Latar 8-Bit (BGM)">
+                <i class="fas fa-music" id="bgm-icon"></i>
+                <span class="hidden md:inline text-[11px] font-bold">BGM</span>
+            </button>
+
+            <!-- SFX Toggle -->
+            <button id="btn-sound" class="pixel-btn bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-2.5 py-1.5 rounded-xl" title="Efek Suara (SFX)">
                 <i class="fas fa-volume-up" id="sound-icon"></i>
+            </button>
+
+            <!-- CRT Retro Filter Toggle -->
+            <button id="btn-crt" class="pixel-btn bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs px-2.5 py-1.5 rounded-xl hidden sm:inline-flex items-center" title="Efek Layar TV Retro (CRT)">
+                <i class="fas fa-tv"></i>
+            </button>
+
+            <!-- Fullscreen Toggle -->
+            <button id="btn-fullscreen" class="pixel-btn bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-2.5 py-1.5 rounded-xl hidden sm:inline-flex items-center" title="Layar Penuh (Fullscreen)">
+                <i class="fas fa-expand" id="fullscreen-icon"></i>
             </button>
         </div>
     </header>
 
-    <!-- MAIN GAME CANVAS AREA -->
-    <main class="relative flex-1 w-full h-full overflow-hidden bg-sky-300">
+    <!-- MAIN IMMERSIVE GAME WORLD CANVAS -->
+    <main class="relative flex-1 w-full h-full overflow-hidden bg-sky-400">
         <canvas id="gameCanvas"></canvas>
 
         <!-- Floating Notification Toast -->
         <div id="game-toast" class="pointer-events-none fixed top-16 left-1/2 -translate-x-1/2 z-30 transition-all duration-300 opacity-0 -translate-y-4">
             <div class="bg-slate-900/95 border-4 border-amber-400 text-amber-300 px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2">
                 <span id="toast-icon" class="text-xl">✨</span>
-                <span id="toast-text" class="font-bold text-sm sm:text-base">Sundul Balok [?] untuk Challenge!</span>
+                <span id="toast-text" class="font-bold text-xs sm:text-sm">Sundul Balok [?] atau [♥] untuk Kejutan!</span>
             </div>
         </div>
 
-        <!-- Milestone Sky Banner -->
-        <div class="pointer-events-none absolute top-3 left-3 bg-slate-900/60 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-white/20 text-xs text-white/90 hidden sm:block">
-            🌤️ Zona: <span id="sky-phase-label" class="font-bold text-amber-300">Pagi Ceria</span> | 🏰 Jarak ke Istana: <span class="text-pink-300 font-bold">∞ (Tidak Ada!)</span>
+        <!-- Top-Left World Status & Biome Card -->
+        <div class="pointer-events-none absolute top-3 left-3 bg-slate-900/75 backdrop-blur-md px-3.5 py-2 rounded-2xl border-2 border-white/20 text-xs text-white shadow-xl flex flex-col gap-1 max-w-xs">
+            <div class="flex items-center gap-2">
+                <span>🌤️ Zona: <b id="sky-phase-label" class="text-amber-300">Pagi Ceria ☀️</b></span>
+                <span class="text-white/40">|</span>
+                <span>🏰 Istana: <b class="text-pink-300">∞ (Tiada Ujung)</b></span>
+            </div>
+            <div class="text-[11px] text-slate-300 flex items-center gap-1.5">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>Sundul balok <b class="text-amber-300">[?]</b> Challenge & balok <b class="text-pink-400">[♥]</b> Gombalan WA!</span>
+            </div>
         </div>
 
-        <!-- MOBILE / ON-SCREEN TOUCH CONTROLS -->
+        <!-- HIDDEN / SUBTLE EASTER EGG BUTTON IN TOP-RIGHT CORNER OF CANVAS -->
+        <button id="btn-hidden-easter-egg"
+                class="absolute top-3 right-3 z-20 opacity-30 hover:opacity-100 transition-opacity duration-300 bg-slate-900/60 hover:bg-pink-500/30 border border-pink-400/50 rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-lg"
+                title="🐾 Rahasia Kecil... Klik 3x atau Selesaikan 3 Challenge Berturut-turut!">
+            🐾
+        </button>
+
+        <!-- MOBILE & DESKTOP ON-SCREEN ARCADE CONTROLS -->
         <div class="absolute bottom-4 inset-x-4 flex justify-between items-end pointer-events-none z-10">
             <!-- D-Pad Left/Right -->
             <div class="flex gap-3 pointer-events-auto">
-                <button id="btn-left" class="pixel-btn w-14 h-14 sm:w-16 sm:h-16 bg-slate-800/85 active:bg-pink-500 text-white rounded-2xl flex items-center justify-center text-2xl backdrop-blur-sm">
-                    <i class="fas fa-arrow-left"></i>
+                <button id="btn-left" class="pixel-btn w-14 h-14 sm:w-16 sm:h-16 bg-slate-900/85 hover:bg-slate-800 active:bg-pink-500 text-white rounded-2xl flex flex-col items-center justify-center backdrop-blur-sm">
+                    <i class="fas fa-arrow-left text-xl"></i>
+                    <span class="pixel-font text-[7px] mt-1 text-slate-300">KIRI</span>
                 </button>
-                <button id="btn-right" class="pixel-btn w-14 h-14 sm:w-16 sm:h-16 bg-slate-800/85 active:bg-pink-500 text-white rounded-2xl flex items-center justify-center text-2xl backdrop-blur-sm">
-                    <i class="fas fa-arrow-right"></i>
+                <button id="btn-right" class="pixel-btn w-14 h-14 sm:w-16 sm:h-16 bg-slate-900/85 hover:bg-slate-800 active:bg-pink-500 text-white rounded-2xl flex flex-col items-center justify-center backdrop-blur-sm">
+                    <i class="fas fa-arrow-right text-xl"></i>
+                    <span class="pixel-font text-[7px] mt-1 text-slate-300">KANAN</span>
                 </button>
             </div>
 
-            <!-- Center Hint -->
-            <div class="hidden md:flex flex-col items-center bg-slate-900/75 px-4 py-1.5 rounded-xl border border-slate-700 text-xs text-slate-300">
-                <span>Kontrol Keyboard: <b>A / D</b> atau <b>Panah Kiri/Kanan</b> untuk Jalan | <b>W / Spasi</b> untuk Loncat & Sundul Balok <b>[?]</b></span>
+            <!-- Center Interactive Quick Bar -->
+            <div class="hidden lg:flex items-center gap-3 bg-slate-900/85 backdrop-blur-md px-4 py-2 rounded-2xl border-2 border-slate-700/80 text-xs text-slate-300 pointer-events-auto shadow-xl">
+                <span>⌨️ <b>A/D</b> atau <b>◀/▶</b> Jalan</span>
+                <span class="text-slate-600">•</span>
+                <span><b>W / Spasi</b> Loncat & Sundul Balok</span>
+                <span class="text-slate-600">•</span>
+                <button id="btn-quick-respawn" class="text-amber-300 hover:text-amber-200 font-bold underline">
+                    🔄 Reset Posisi Kucing
+                </button>
             </div>
 
             <!-- Jump Button -->
             <div class="pointer-events-auto">
-                <button id="btn-jump" class="pixel-btn w-16 h-16 sm:w-20 sm:h-20 bg-pink-500 active:bg-pink-400 text-white rounded-2xl flex flex-col items-center justify-center shadow-lg">
+                <button id="btn-jump" class="pixel-btn w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-pink-500 to-rose-600 active:from-pink-400 active:to-rose-500 text-white rounded-2xl flex flex-col items-center justify-center shadow-xl">
                     <i class="fas fa-arrow-up text-2xl"></i>
                     <span class="pixel-font text-[8px] mt-1">LONCAT</span>
                 </button>
@@ -218,64 +322,102 @@
         </div>
     </main>
 
-    <!-- INTRO / START OVERLAY MODAL -->
-    <div id="intro-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-900 border-4 border-pink-400 rounded-3xl max-w-lg w-full p-6 text-center shadow-2xl relative overflow-hidden">
-            <div class="inline-block bg-pink-500/20 border-2 border-pink-400 px-4 py-1.5 rounded-full text-pink-300 text-xs font-bold mb-3 animate-float">
-                🐾 ENDLESS PIXEL PLATFORMER 🐾
+    <!-- IMMERSIVE LANDING / START OVERLAY MODAL -->
+    <div id="intro-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slate-900 border-4 border-pink-400 rounded-3xl max-w-xl w-full p-5 sm:p-7 text-center shadow-2xl relative overflow-hidden my-auto">
+            <!-- Ambient Corner Glow -->
+            <div class=" -top-16 -right-16 w-40 h-40 bg-pink-500/20 rounded-full blur-2xl pointer-events-none"></div>
+            <div class=" -bottom-16 -left-16 w-40 h-40 bg-amber-500/20 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div class="inline-flex items-center gap-2 bg-pink-500/20 border-2 border-pink-400 px-4 py-1.5 rounded-full text-pink-300 text-xs font-bold mb-3 animate-float">
+                <span>🐱</span>
+                <span>IMMERSIVE PIXEL ARCADE & ROMANTIC WORLD</span>
+                <span>💖</span>
             </div>
-            <h1 class="pixel-font text-xl sm:text-2xl text-amber-300 mb-3 leading-relaxed">
-                NEKO-BLOCK:<br><span class="text-pink-400 text-sm sm:text-base">Mencari Istana Palsu</span>
+
+            <h1 class="pixel-font text-lg sm:text-2xl text-amber-300 mb-2 leading-relaxed">
+                NEKO-BLOCK:<br><span class="text-pink-400 text-xs sm:text-base">Petualangan Cinta Tanpa Istana</span>
             </h1>
-            <p class="text-slate-300 text-sm sm:text-base mb-4 leading-relaxed">
-                Kendalikan <b>Kucing Kotak</b> di dunia tanpa ujung! Tidak ada istana atau putri di sini. Setiap kali kamu menyundul <b>Batu Bata Misterius [?]</b>, kamu wajib menyelesaikan <b>Challenge Random</b>:
+
+            <p class="text-slate-300 text-xs sm:text-sm mb-4 leading-relaxed max-w-md mx-auto">
+                Kendalikan <b>Kucing Kotak</b> melintasi dunia pixel tanpa ujung! Setiap kali menyundul balok <b>[?]</b> atau <b>[♥]</b>, kamu akan mendapatkan <b>Tantangan Seru</b> atau <b>Surat Cinta Spesial</b> dari pembuat game ini!
             </p>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left mb-6 text-xs">
-                <div class="bg-slate-800/90 border-2 border-amber-400/60 p-3 rounded-xl">
-                    <div class="text-lg mb-1">♟️ <b>Catur & Strategi</b></div>
-                    <p class="text-slate-400">Puzzle Skakmat, Full Catur 8x8, Minesweeper, & Tic-Tac-Toe lawan Bot!</p>
+
+            <!-- Feature Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-left mb-5 text-xs">
+                <div class="bg-slate-800/90 border-2 border-amber-400/60 p-3 rounded-2xl flex items-start gap-2.5">
+                    <span class="text-2xl">♟️</span>
+                    <div>
+                        <div class="font-bold text-amber-300">Catur & 15+ Minigame</div>
+                        <p class="text-slate-400 text-[11px]">Puzzle Skakmat, Catur 8x8 vs Bot, Flappy Neko, Gebuk Slime, Memory, & lainnya!</p>
+                    </div>
                 </div>
-                <div class="bg-slate-800/90 border-2 border-cyan-400/60 p-3 rounded-xl">
-                    <div class="text-lg mb-1">🎮 <b>15+ In-Game Arcade</b></div>
-                    <p class="text-slate-400">Flappy Neko, Gebuk Slime, Memory Match, Stroop Test, Timing Bar, Pompa Balon, dll!</p>
+                <div class="bg-slate-800/90 border-2 border-pink-400/60 p-3 rounded-2xl flex items-start gap-2.5">
+                    <span class="text-2xl">💌</span>
+                    <div>
+                        <div class="font-bold text-pink-300">28+ Gombalan & Surat Cinta</div>
+                        <p class="text-slate-400 text-[11px]">Sundul balok <b>[♥]</b> untuk membuka pesan romantis & teruskan langsung ke WA pasangan!</p>
+                    </div>
                 </div>
-                <div class="bg-slate-800/90 border-2 border-emerald-400/60 p-3 rounded-xl">
-                    <div class="text-lg mb-1">📱 <b>Real-Life WA</b></div>
-                    <p class="text-slate-400">Bonus misi dunia nyata ke WhatsApp <b>6289674037725</b>!</p>
+                <div class="bg-slate-800/90 border-2 border-emerald-400/60 p-3 rounded-2xl flex items-start gap-2.5">
+                    <span class="text-2xl">📱</span>
+                    <div>
+                        <div class="font-bold text-emerald-300">Real-Life Quest ke WA</div>
+                        <p class="text-slate-400 text-[11px]">Tantangan dunia nyata langsung terhubung ke WhatsApp <b>6289674037725</b>!</p>
+                    </div>
+                </div>
+                <div class="bg-slate-800/90 border-2 border-rose-400/60 p-3 rounded-2xl flex items-start gap-2.5">
+                    <span class="text-2xl">💋</span>
+                    <div>
+                        <div class="font-bold text-rose-300">Bonus Rahasia 3x Streak!</div>
+                        <p class="text-slate-400 text-[11px]">Menangkan <b>3 Challenge berturut-turut</b> untuk klaim hadiah <b>PAP / VN Cium</b> dari cowokmu!</p>
+                    </div>
                 </div>
             </div>
-            <button id="btn-start-game" class="pixel-btn w-full bg-gradient-to-r from-pink-500 to-amber-500 hover:from-pink-400 hover:to-amber-400 text-slate-950 font-extrabold py-3.5 rounded-2xl text-base sm:text-lg tracking-wide">
-                🚀 MULAI PETUALANGAN MEONG!
+
+            <button id="btn-start-game" class="pixel-btn w-full bg-gradient-to-r from-pink-500 via-rose-500 to-amber-400 hover:from-pink-400 hover:to-amber-300 text-slate-950 font-extrabold py-3.5 rounded-2xl text-sm sm:text-base tracking-wide shadow-xl">
+                🚀 MULAI PETUALANGAN & NYALAKAN MUSIK!
             </button>
         </div>
     </div>
 
-    <!-- MYSTERY BLOCK (?) CHALLENGE MODAL -->
+    <!-- MYSTERY BLOCK (?) & (♥) CHALLENGE MODAL -->
     <div id="challenge-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-40 hidden items-center justify-center p-3 sm:p-4 overflow-y-auto">
         <div class="bg-slate-900 border-4 border-amber-400 rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl my-auto relative">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between border-b-2 border-slate-800 pb-3 mb-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-800 pb-3 mb-4 gap-2">
                 <div class="flex items-center gap-2.5">
-                    <div id="ch-badge-icon" class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-xl font-bold shadow">
+                    <div id="ch-badge-icon" class="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center text-2xl font-bold shadow shrink-0">
                         ❓
                     </div>
                     <div>
-                        <span id="ch-category-tag" class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-400/40">
-                            BALOK MISTERIUS
-                        </span>
-                        <h2 id="ch-title" class="text-lg sm:text-xl font-extrabold text-white mt-0.5">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span id="ch-category-tag" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-400/40">
+                                BALOK MISTERIUS
+                            </span>
+                            <span id="ch-streak-pill" class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40">
+                                🔥 Streak: 0/3
+                            </span>
+                        </div>
+                        <h2 id="ch-title" class="text-base sm:text-xl font-extrabold text-white mt-0.5">
                             Tantangan Muncul!
                         </h2>
                     </div>
                 </div>
-                <!-- Switch Random Challenge Button (if user wants to reroll) -->
-                <button id="btn-reroll-challenge" class="pixel-btn bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-3 py-1.5 rounded-xl flex items-center gap-1" title="Ganti Challenge Lain">
-                    <i class="fas fa-dice"></i> Ganti
-                </button>
+
+                <!-- Right Modal Action Buttons -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button id="btn-reroll-challenge" class="pixel-btn bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1" title="Acak Challenge Lain">
+                        <i class="fas fa-dice"></i> <span class="hidden sm:inline">Ganti</span>
+                    </button>
+                    <button id="btn-close-challenge-modal" class="pixel-btn bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white text-xs px-2.5 py-1.5 rounded-xl" title="Tutup Sementara">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Dynamic Challenge Body -->
-            <div id="ch-body" class="min-h-[260px] flex flex-col justify-center">
+            <div id="ch-body" class="min-h-[250px] flex flex-col justify-center">
                 <!-- Populated dynamically by JS -->
             </div>
 
@@ -284,14 +426,53 @@
         </div>
     </div>
 
+    <!-- LOVE LETTER VAULT MODAL (KOLEKSI SURAT CINTA & GOMBALAN) -->
+    <div id="vault-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-slate-900 border-4 border-pink-400 rounded-3xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl my-auto relative max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between border-b-2 border-slate-800 pb-3 mb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-2xl bg-pink-500 text-slate-950 flex items-center justify-center text-xl font-bold">
+                        💌
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-400/40">
+                            KOLEKSI SPESIAL DARI PEMBUAT GAME
+                        </span>
+                        <h2 class="text-base sm:text-xl font-extrabold text-white">
+                            Brankas Surat Cinta & Gombalan
+                        </h2>
+                    </div>
+                </div>
+                <button id="btn-close-vault" class="pixel-btn bg-slate-800 hover:bg-rose-500 text-white text-xs px-3 py-1.5 rounded-xl font-bold">
+                    ✕ Tutup
+                </button>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-slate-800/80 px-3.5 py-2 rounded-2xl border border-slate-700 text-xs">
+                <span class="text-slate-300">Pesan Terbuka: <b id="vault-unlocked-stat" class="text-pink-400">3 / 28</b></span>
+                <div class="flex items-center gap-2">
+                    <button id="btn-unlock-random-quote" class="pixel-btn bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold px-3 py-1 rounded-xl text-xs">
+                        ✨ Buka 1 Surat Baru Gratis!
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable List of Unlocked Romantic Quotes -->
+            <div id="vault-list" class="overflow-y-auto space-y-2.5 pr-1 flex-1 min-h-[240px]"></div>
+        </div>
+    </div>
+
     <script>
     /********************************************************************
-     * 1. WEB AUDIO SYNTHESIZER (Retro 8-Bit Sound Effects)
+     * 1. WEB AUDIO SYNTHESIZER (Retro 8-Bit SFX + Procedural Chiptune BGM)
      ********************************************************************/
     class SoundFX {
         constructor() {
             this.ctx = null;
             this.enabled = true;
+            this.bgmEnabled = false;
+            this.bgmTimer = null;
+            this.bgmStep = 0;
         }
         init() {
             if (!this.ctx) {
@@ -302,7 +483,7 @@
                 this.ctx.resume();
             }
         }
-        playTone(freq, type, duration, delay = 0, vol = 0.12) {
+        playTone(freq, type, duration, delay = 0, vol = 0.11) {
             if (!this.enabled) return;
             this.init();
             if (!this.ctx) return;
@@ -318,9 +499,49 @@
             osc.start(now);
             osc.stop(now + duration);
         }
+        startBGM() {
+            this.init();
+            this.bgmEnabled = true;
+            const btn = document.getElementById('btn-bgm');
+            if (btn) btn.className = "pixel-btn bg-pink-500 hover:bg-pink-400 text-slate-950 text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1";
+            if (this.bgmTimer) clearInterval(this.bgmTimer);
+
+            // Cozy upbeat 8-bit chiptune melody loop
+            const melody = [
+                523.25, 659.25, 783.99, 659.25, 880.00, 783.99, 659.25, 587.33,
+                523.25, 587.33, 659.25, 523.25, 493.88, 587.33, 659.25, 523.25
+            ];
+            const bass = [
+                261.63, 261.63, 329.63, 329.63, 349.23, 349.23, 392.00, 392.00
+            ];
+
+            this.bgmTimer = setInterval(() => {
+                if (!this.bgmEnabled || !this.enabled || gameState.paused) return;
+                const mNote = melody[this.bgmStep % melody.length];
+                const bNote = bass[Math.floor(this.bgmStep / 2) % bass.length];
+                this.playTone(mNote, 'square', 0.14, 0, 0.035);
+                if (this.bgmStep % 2 === 0) {
+                    this.playTone(bNote, 'triangle', 0.24, 0, 0.045);
+                }
+                this.bgmStep++;
+            }, 230);
+        }
+        stopBGM() {
+            this.bgmEnabled = false;
+            const btn = document.getElementById('btn-bgm');
+            if (btn) btn.className = "pixel-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1";
+            if (this.bgmTimer) {
+                clearInterval(this.bgmTimer);
+                this.bgmTimer = null;
+            }
+        }
+        toggleBGM() {
+            if (this.bgmEnabled) this.stopBGM();
+            else this.startBGM();
+        }
         jump() {
-            this.playTone(320, 'square', 0.08, 0, 0.1);
-            this.playTone(480, 'square', 0.12, 0.06, 0.1);
+            this.playTone(330, 'square', 0.08, 0, 0.1);
+            this.playTone(490, 'square', 0.12, 0.06, 0.1);
         }
         coin() {
             this.playTone(987.77, 'square', 0.07, 0, 0.1);
@@ -333,6 +554,10 @@
         mysteryHit() {
             const notes = [392, 523.25, 659.25, 783.99, 1046.5];
             notes.forEach((n, i) => this.playTone(n, 'square', 0.09, i * 0.055, 0.11));
+        }
+        romanceHit() {
+            const notes = [523.25, 659.25, 783.99, 987.77, 1046.5, 1318.51];
+            notes.forEach((n, i) => this.playTone(n, 'sine', 0.14, i * 0.065, 0.13));
         }
         winChallenge() {
             const notes = [523.25, 659.25, 783.99, 1046.5];
@@ -354,8 +579,9 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    const TILE = 40;
+    const TILE = 42;
     const GRAVITY = 0.62;
+    const WORLD_GROUND_Y = 420; // Fixed world ground coordinate so camera Y smoothly tracks player on any screen height!
 
     const gameState = {
         paused: true,
@@ -363,15 +589,20 @@
         coins: 0,
         distance: 0,
         challengesDone: 0,
+        consecutiveStreak: 0,
+        secretBonusUnlocked: false,
         lives: 3,
         cameraX: 0,
+        cameraY: 0,
         generatedUntilX: 0,
         activeMysteryBlock: null,
+        unlockedQuotes: new Set([0, 1, 2]), // First 3 love letters unlocked at start
         particles: [],
+        ambientParticles: [],
         floatingTexts: [],
         clouds: [],
         hills: [],
-        platforms: [], // {x, y, w, h, type: 'ground'|'brick'|'mystery'|'used', bounceY: 0}
+        platforms: [], // {x, y, w, h, type: 'ground'|'brick'|'mystery'|'romance'|'used', bounceY: 0}
         coinsList: [], // {x, y, r, collected, bobOffset}
         enemies: [],   // {x, y, w, h, vx, minX, maxX, alive, type}
         signs: []      // {x, y, text}
@@ -380,13 +611,13 @@
     // Cute "Kucing Kotak" (Blocky Cat) Protagonist
     const cat = {
         x: 120,
-        y: 200,
+        y: WORLD_GROUND_Y - 38,
         w: 36,
         h: 36,
         vx: 0,
         vy: 0,
-        speed: 4.8,
-        jumpForce: -13.2,
+        speed: 4.9,
+        jumpForce: -13.4,
         grounded: false,
         facing: 1, // 1 right, -1 left
         scaleX: 1,
@@ -394,119 +625,159 @@
         tailAngle: 0,
         invincibleTimer: 0,
         lastSafeX: 120,
-        lastSafeY: 180
+        lastSafeY: WORLD_GROUND_Y - 40
     };
 
     const keys = { left: false, right: false, jump: false };
 
     const FUNNY_SIGNS = [
         "🏰 Istana masih 999.999 km lagi!",
-        "🐾 Sundul balok [?] buat kejutan!",
-        "😼 Kucing Kotak pantang menyerah!",
+        "💌 Sundul balok [♥] buat surat cinta!",
+        "😼 Kucing Kotak sayang kamu!",
         "♟️ Awas tiba-tiba diajak main catur!",
-        "📱 Siapkan HP buat challenge WA!",
+        "🔥 Selesaikan 3 Misi beruntun = Bonus PAP/VN!",
         "👑 Putri sudah pindah kosan, lanjut jalan!",
-        "🥛 Jangan lupa minum air putih hari ini!"
+        "💖 Lari terus sampai ke pelukan cowokmu!"
     ];
 
     function resizeCanvas() {
         const rect = canvas.parentElement.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
+        canvas.width = Math.max(320, rect.width);
+        canvas.height = Math.max(260, rect.height);
+        // Immediately align vertical camera so the ground is comfortably visible in the bottom 25% of the viewport
+        gameState.cameraY = WORLD_GROUND_Y - (canvas.height - 115);
     }
     window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
 
-    function getGroundY() {
-        return Math.max(320, canvas.height - 96);
-    }
-
-    // Initialize Parallax Clouds & Hills
+    // Initialize Parallax Clouds, Hills & Ambient Floating Hearts/Stars
     function initScenery() {
         gameState.clouds = [];
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 14; i++) {
             gameState.clouds.push({
-                x: i * 220 + Math.random() * 100,
-                y: 40 + Math.random() * 120,
-                w: 64 + Math.random() * 48,
-                speed: 0.2 + Math.random() * 0.3
+                x: i * 200 + Math.random() * 90,
+                y: 45 + Math.random() * 140,
+                w: 64 + Math.random() * 52,
+                speed: 0.18 + Math.random() * 0.25
+            });
+        }
+        gameState.hills = [];
+        for (let i = 0; i < 10; i++) {
+            gameState.hills.push({
+                x: i * 280,
+                w: 180 + Math.random() * 140,
+                h: 65 + Math.random() * 65
+            });
+        }
+        gameState.ambientParticles = [];
+        for (let i = 0; i < 22; i++) {
+            gameState.ambientParticles.push({
+                x: Math.random() * 1400,
+                y: Math.random() * 600,
+                vy: -0.3 - Math.random() * 0.5,
+                vx: (Math.random() - 0.5) * 0.4,
+                size: 3 + Math.random() * 4,
+                kind: Math.random() < 0.45 ? 'heart' : 'sparkle'
             });
         }
     }
 
     // Procedural Chunk Generator (Endless!)
     function generateWorldChunk() {
-        const gY = getGroundY();
+        const gY = WORLD_GROUND_Y;
         const startX = gameState.generatedUntilX;
 
         // First safe starting zone
         if (startX === 0) {
             gameState.platforms.push({
-                x: -100, y: gY, w: 750, h: 300, type: 'ground', bounceY: 0
+                x: -120, y: gY, w: 800, h: 360, type: 'ground', bounceY: 0
             });
-            // Starter Mystery Blocks right in front of the player
+            // Starter Mystery & Romance Blocks right in front of the player
             gameState.platforms.push({
-                x: 280, y: gY - 115, w: TILE, h: TILE, type: 'brick', bounceY: 0
-            });
-            gameState.platforms.push({
-                x: 320, y: gY - 115, w: TILE, h: TILE, type: 'mystery', bounceY: 0
+                x: 250, y: gY - 115, w: TILE, h: TILE, type: 'brick', bounceY: 0
             });
             gameState.platforms.push({
-                x: 360, y: gY - 115, w: TILE, h: TILE, type: 'brick', bounceY: 0
+                x: 250 + TILE, y: gY - 115, w: TILE, h: TILE, type: 'mystery', bounceY: 0
             });
             gameState.platforms.push({
-                x: 500, y: gY - 125, w: TILE, h: TILE, type: 'mystery', bounceY: 0
+                x: 250 + TILE * 2, y: gY - 115, w: TILE, h: TILE, type: 'romance', bounceY: 0
             });
+            gameState.platforms.push({
+                x: 250 + TILE * 3, y: gY - 115, w: TILE, h: TILE, type: 'brick', bounceY: 0
+            });
+            gameState.platforms.push({
+                x: 520, y: gY - 120, w: TILE, h: TILE, type: 'mystery', bounceY: 0
+            });
+
+            // Starter coins
+            for (let c = 0; c < 4; c++) {
+                gameState.coinsList.push({
+                    x: 265 + c * 42,
+                    y: gY - 155,
+                    r: 11,
+                    collected: false,
+                    bobOffset: c * 0.6
+                });
+            }
+
             gameState.signs.push({
-                x: 190, y: gY, text: "😼 Sundul Balok [?] di atas!"
+                x: 165, y: gY, text: "😼 Sundul [?] atau [♥] di atas!"
             });
-            gameState.generatedUntilX = 650;
+            gameState.generatedUntilX = 680;
             return;
         }
 
         // Subsequent procedural chunks
-        const gapWidth = Math.random() < 0.45 ? (75 + Math.floor(Math.random() * 55)) : 0;
+        const gapWidth = Math.random() < 0.42 ? (72 + Math.floor(Math.random() * 52)) : 0;
         const chunkX = startX + gapWidth;
         const chunkW = 360 + Math.floor(Math.random() * 360);
-        const elevation = Math.random() < 0.3 ? -25 : 0;
+        const elevation = Math.random() < 0.32 ? -24 : 0;
         const floorY = gY + elevation;
 
         // Ground Platform
         gameState.platforms.push({
-            x: chunkX, y: floorY, w: chunkW, h: 350, type: 'ground', bounceY: 0
+            x: chunkX, y: floorY, w: chunkW, h: 400, type: 'ground', bounceY: 0
         });
 
-        // Add a stepping platform if gap is wide
-        if (gapWidth > 100) {
+        // Stepping stone if gap is wide
+        if (gapWidth > 95) {
             gameState.platforms.push({
-                x: startX + gapWidth / 2 - 20,
-                y: floorY - 50,
+                x: startX + gapWidth / 2 - 21,
+                y: floorY - 48,
                 w: TILE,
-                h: 20,
+                h: 22,
                 type: 'brick',
                 bounceY: 0
             });
         }
 
-        // Overhead Brick & Mystery [?] Block Formations
+        // Overhead Brick, Mystery [?], and Romantic [♥] Block Formations
         const numStructures = 1 + Math.floor(Math.random() * 2);
         for (let s = 0; s < numStructures; s++) {
-            const structX = chunkX + 60 + s * 190;
+            const structX = chunkX + 55 + s * 185;
             if (structX + 160 < chunkX + chunkW) {
-                const blockY = floorY - (108 + Math.floor(Math.random() * 25));
+                const blockY = floorY - (108 + Math.floor(Math.random() * 22));
                 const len = 2 + Math.floor(Math.random() * 3);
                 for (let b = 0; b < len; b++) {
-                    const isMystery = (b === Math.floor(len / 2)) || Math.random() < 0.45;
+                    const roll = Math.random();
+                    let bType = 'brick';
+                    if (b === Math.floor(len / 2)) {
+                        bType = roll < 0.35 ? 'romance' : 'mystery';
+                    } else if (roll < 0.25) {
+                        bType = 'mystery';
+                    } else if (roll < 0.42) {
+                        bType = 'romance';
+                    }
+
                     gameState.platforms.push({
                         x: structX + b * TILE,
                         y: blockY,
                         w: TILE,
                         h: TILE,
-                        type: isMystery ? 'mystery' : 'brick',
+                        type: bType,
                         bounceY: 0
                     });
-                    // Coins above blocks sometimes
-                    if (Math.random() < 0.5) {
+
+                    if (Math.random() < 0.55) {
                         gameState.coinsList.push({
                             x: structX + b * TILE + TILE / 2,
                             y: blockY - 34,
@@ -517,14 +788,14 @@
                     }
                 }
 
-                // Second tier high mystery block occasionally
-                if (Math.random() < 0.35) {
+                // Second tier bonus block occasionally
+                if (Math.random() < 0.38) {
                     gameState.platforms.push({
                         x: structX + TILE,
-                        y: blockY - 105,
+                        y: blockY - 102,
                         w: TILE,
                         h: TILE,
-                        type: 'mystery',
+                        type: Math.random() < 0.45 ? 'romance' : 'mystery',
                         bounceY: 0
                     });
                 }
@@ -532,12 +803,12 @@
         }
 
         // Coin Arcs on Ground
-        if (Math.random() < 0.7) {
+        if (Math.random() < 0.75) {
             const coinStartX = chunkX + 40;
             for (let c = 0; c < 4; c++) {
                 gameState.coinsList.push({
                     x: coinStartX + c * 32,
-                    y: floorY - 36 - Math.sin((c / 3) * Math.PI) * 30,
+                    y: floorY - 36 - Math.sin((c / 3) * Math.PI) * 28,
                     r: 11,
                     collected: false,
                     bobOffset: c * 0.5
@@ -547,13 +818,13 @@
 
         // Cute Slime / Mushroom Enemies
         if (chunkW > 320 && Math.random() < 0.75) {
-            const ex = chunkX + 140 + Math.random() * (chunkW - 220);
+            const ex = chunkX + 135 + Math.random() * (chunkW - 210);
             gameState.enemies.push({
                 x: ex,
                 y: floorY - 30,
                 w: 32,
                 h: 30,
-                vx: (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 0.8),
+                vx: (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random() * 0.75),
                 minX: chunkX + 24,
                 maxX: chunkX + chunkW - 56,
                 alive: true,
@@ -562,10 +833,10 @@
         }
 
         // Funny Milestone Sign
-        if (Math.random() < 0.45) {
+        if (Math.random() < 0.5) {
             const signText = FUNNY_SIGNS[Math.floor(Math.random() * FUNNY_SIGNS.length)];
             gameState.signs.push({
-                x: chunkX + chunkW - 90,
+                x: chunkX + chunkW - 95,
                 y: floorY,
                 text: signText
             });
@@ -574,7 +845,7 @@
         gameState.generatedUntilX = chunkX + chunkW;
 
         // Cleanup old objects far behind camera
-        const cullX = gameState.cameraX - 400;
+        const cullX = gameState.cameraX - 450;
         gameState.platforms = gameState.platforms.filter(p => p.x + p.w > cullX);
         gameState.coinsList = gameState.coinsList.filter(c => c.x > cullX && !c.collected);
         gameState.enemies = gameState.enemies.filter(e => e.x + e.w > cullX && e.alive);
@@ -595,7 +866,7 @@
     }
 
     function spawnFloatingText(x, y, text, color = '#fde047') {
-        gameState.floatingTexts.push({ x, y, text, color, life: 45 });
+        gameState.floatingTexts.push({ x, y, text, color, life: 48 });
     }
 
     function showToast(text, icon = '✨') {
@@ -608,7 +879,7 @@
         window._toastTimer = setTimeout(() => {
             toast.classList.add('opacity-0', '-translate-y-4');
             toast.classList.remove('opacity-100', 'translate-y-0');
-        }, 2800);
+        }, 3000);
     }
 
     function updateHUD() {
@@ -616,6 +887,23 @@
         document.getElementById('hud-dist').textContent = gameState.distance;
         document.getElementById('hud-challenges').textContent = gameState.challengesDone;
         document.getElementById('hud-lives').textContent = '❤️'.repeat(Math.max(1, gameState.lives));
+        document.getElementById('hud-streak').textContent = gameState.consecutiveStreak;
+
+        const streakPill = document.getElementById('ch-streak-pill');
+        if (streakPill) {
+            streakPill.textContent = `🔥 Streak: ${gameState.consecutiveStreak}/3`;
+        }
+
+        const vaultBadge = document.getElementById('vault-count-badge');
+        if (vaultBadge) {
+            vaultBadge.textContent = gameState.unlockedQuotes.size;
+        }
+
+        const vipBtn = document.getElementById('btn-vip-bonus');
+        if (vipBtn && gameState.secretBonusUnlocked) {
+            vipBtn.classList.remove('hidden');
+            vipBtn.classList.add('flex');
+        }
     }
 
     /********************************************************************
@@ -625,7 +913,7 @@
         if (gameState.paused || gameState.inChallenge) return;
 
         // Ensure world ahead is generated
-        while (gameState.generatedUntilX < gameState.cameraX + canvas.width + 500) {
+        while (gameState.generatedUntilX < gameState.cameraX + canvas.width + 600) {
             generateWorldChunk();
         }
 
@@ -639,6 +927,16 @@
         } else {
             cat.vx *= 0.78;
             if (Math.abs(cat.vx) < 0.1) cat.vx = 0;
+        }
+
+        // Subtle heart/dust trail when running on a streak
+        if (Math.abs(cat.vx) > 2 && cat.grounded && Math.random() < 0.25) {
+            spawnParticles(
+                cat.x + cat.w / 2,
+                cat.y + cat.h - 2,
+                gameState.consecutiveStreak > 0 ? '#f472b6' : '#e2e8f0',
+                1
+            );
         }
 
         // Jump
@@ -658,7 +956,7 @@
         // Move X & Resolve X Collisions
         cat.x += cat.vx;
         if (cat.x < gameState.cameraX + 16) {
-            cat.x = gameState.cameraX + 16; // Prevent walking behind left screen edge
+            cat.x = gameState.cameraX + 16;
         }
 
         for (const p of gameState.platforms) {
@@ -691,14 +989,21 @@
                     // HEADBUTTING A BLOCK FROM BELOW!
                     cat.y = p.y + p.h;
                     cat.vy = 2.2;
-                    p.bounceY = -8;
+                    p.bounceY = -9;
 
                     if (p.type === 'mystery') {
                         p.type = 'used';
                         sfx.mysteryHit();
                         spawnParticles(p.x + p.w / 2, p.y, '#fde047', 16);
                         spawnFloatingText(p.x, p.y - 12, "CHALLENGE!", "#f472b6");
-                        triggerMysteryChallenge(p);
+                        triggerMysteryChallenge(p, null);
+                        return;
+                    } else if (p.type === 'romance') {
+                        p.type = 'used';
+                        sfx.romanceHit();
+                        spawnParticles(p.x + p.w / 2, p.y, '#f472b6', 18);
+                        spawnFloatingText(p.x, p.y - 12, "SURAT CINTA! 💌", "#fb7185");
+                        triggerMysteryChallenge(p, 'ROMANTIC_MSG');
                         return;
                     } else if (p.type === 'brick') {
                         sfx.stomp();
@@ -716,11 +1021,13 @@
         cat.tailAngle += Math.abs(cat.vx) > 0.5 ? 0.25 : 0.07;
         if (cat.invincibleTimer > 0) cat.invincibleTimer--;
 
-        // Camera smoothly follows Kucing Kotak forward
+        // Camera smoothly follows Kucing Kotak horizontally & vertically
         const targetCamX = cat.x - canvas.width * 0.28;
         if (targetCamX > gameState.cameraX) {
             gameState.cameraX += (targetCamX - gameState.cameraX) * 0.12;
         }
+        const desiredCamY = WORLD_GROUND_Y - (canvas.height - 110);
+        gameState.cameraY += (desiredCamY - gameState.cameraY) * 0.15;
 
         // Update Distance Meter
         const newDist = Math.max(gameState.distance, Math.floor((cat.x - 120) / 25));
@@ -752,17 +1059,15 @@
             if (e.x < e.minX || e.x > e.maxX) e.vx *= -1;
 
             if (rectOverlap(cat.x, cat.y, cat.w, cat.h, e.x, e.y, e.w, e.h)) {
-                // Stomp from above
                 if (cat.vy > 0 && cat.y + cat.h - cat.vy <= e.y + 14) {
                     e.alive = false;
-                    cat.vy = -10;
+                    cat.vy = -10.5;
                     gameState.coins += 3;
                     sfx.stomp();
                     spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#a855f7', 12);
                     spawnFloatingText(e.x, e.y, "+3 🪙 Meong!", "#a3e635");
                     updateHUD();
                 } else if (cat.invincibleTimer <= 0) {
-                    // Hurt
                     sfx.hurt();
                     cat.invincibleTimer = 60;
                     cat.vy = -8;
@@ -774,14 +1079,8 @@
         }
 
         // Fall into Pit -> Instant Respawn at last safe ground
-        if (cat.y > canvas.height + 120) {
-            sfx.hurt();
-            cat.x = Math.max(gameState.cameraX + 60, cat.lastSafeX);
-            cat.y = 80;
-            cat.vx = 0;
-            cat.vy = 0;
-            cat.invincibleTimer = 60;
-            spawnFloatingText(cat.x, 120, "Respawn Meong! 🐾", "#38bdf8");
+        if (cat.y > WORLD_GROUND_Y + 260) {
+            respawnCatSafely();
         }
 
         // Update Block Bounce Animations
@@ -808,21 +1107,30 @@
         gameState.floatingTexts = gameState.floatingTexts.filter(ft => ft.life > 0);
     }
 
+    function respawnCatSafely() {
+        sfx.hurt();
+        cat.x = Math.max(gameState.cameraX + 70, cat.lastSafeX);
+        cat.y = WORLD_GROUND_Y - 140;
+        cat.vx = 0;
+        cat.vy = 0;
+        cat.invincibleTimer = 60;
+        spawnFloatingText(cat.x, cat.y, "Respawn Meong! 🐾", "#38bdf8");
+    }
+
     function rectOverlap(x1, y1, w1, h1, x2, y2, w2, h2) {
         return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
     }
 
     /********************************************************************
-     * 4. PIXEL ART CANVAS RENDERER
+     * 4. PIXEL ART CANVAS RENDERER (WITH PARALLAX HILLS & ROMANCE BLOCKS)
      ********************************************************************/
     function drawGame() {
-        // Dynamic Sky Phase based on Distance
         const phase = Math.floor((gameState.distance / 150) % 4);
         const skyGradients = [
             ['#38bdf8', '#bae6fd', 'Pagi Ceria ☀️'],
-            ['#f97316', '#fde047', 'Senja Oranye 🌅'],
+            ['#f97316', '#fde047', 'Senja Romantis 🌅'],
             ['#1e1b4b', '#4338ca', 'Malam Bintang 🌙'],
-            ['#090d16', '#3b0764', 'Luar Angkasa 🪐']
+            ['#090d16', '#581c87', 'Galaksi Cinta 🪐']
         ];
         const [topCol, botCol, label] = skyGradients[phase];
         const phaseEl = document.getElementById('sky-phase-label');
@@ -834,45 +1142,62 @@
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Stars in Night/Space phase
+        // Twinkling Stars in Night/Galaxy phase
         if (phase >= 2) {
             ctx.fillStyle = '#ffffff';
-            for (let i = 0; i < 30; i++) {
-                const sx = ((i * 97 - gameState.cameraX * 0.1) % canvas.width + canvas.width) % canvas.width;
-                const sy = (i * 43) % (canvas.height * 0.6);
+            for (let i = 0; i < 36; i++) {
+                const sx = ((i * 97 - gameState.cameraX * 0.08) % canvas.width + canvas.width) % canvas.width;
+                const sy = (i * 43) % (canvas.height * 0.65);
                 ctx.fillRect(sx, sy, (i % 2) + 2, (i % 2) + 2);
             }
         }
 
+        // Ambient Floating Hearts & Sparkles in Sky
+        gameState.ambientParticles.forEach(ap => {
+            ap.y += ap.vy;
+            ap.x += ap.vx;
+            if (ap.y < 10) ap.y = canvas.height - 40;
+            const screenX = ((ap.x - gameState.cameraX * 0.15) % canvas.width + canvas.width) % canvas.width;
+            ctx.fillStyle = ap.kind === 'heart' ? 'rgba(244, 114, 182, 0.45)' : 'rgba(253, 224, 71, 0.45)';
+            ctx.fillRect(screenX, ap.y, ap.size, ap.size);
+        });
+
         // Parallax Pixel Clouds
-        ctx.fillStyle = phase >= 2 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.85)';
+        ctx.fillStyle = phase >= 2 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.88)';
         gameState.clouds.forEach(c => {
-            const cx = ((c.x - gameState.cameraX * c.speed) % (canvas.width + 200) + (canvas.width + 200)) % (canvas.width + 200) - 100;
+            const cx = ((c.x - gameState.cameraX * c.speed) % (canvas.width + 220) + (canvas.width + 220)) % (canvas.width + 220) - 110;
             ctx.fillRect(cx, c.y, c.w, 22);
             ctx.fillRect(cx + 12, c.y - 10, c.w - 24, 12);
         });
 
+        // Parallax Distant Pixel Hills
+        const groundScreenY = WORLD_GROUND_Y - gameState.cameraY;
+        ctx.fillStyle = phase >= 2 ? 'rgba(49, 46, 129, 0.55)' : 'rgba(16, 185, 129, 0.35)';
+        gameState.hills.forEach(h => {
+            const hx = ((h.x - gameState.cameraX * 0.25) % (canvas.width + 400) + (canvas.width + 400)) % (canvas.width + 400) - 200;
+            ctx.fillRect(hx, groundScreenY - h.h, h.w, h.h + 20);
+            ctx.fillRect(hx + 24, groundScreenY - h.h - 18, h.w - 48, 18);
+        });
+
         ctx.save();
-        ctx.translate(-Math.floor(gameState.cameraX), 0);
+        ctx.translate(-Math.floor(gameState.cameraX), -Math.floor(gameState.cameraY));
 
         // Draw Funny Milestone Signs
         gameState.signs.forEach(s => {
-            // Wooden post
             ctx.fillStyle = '#78350f';
             ctx.fillRect(s.x + 16, s.y - 46, 8, 46);
-            // Sign board
             ctx.fillStyle = '#fef3c7';
             ctx.strokeStyle = '#78350f';
             ctx.lineWidth = 3;
-            ctx.fillRect(s.x - 55, s.y - 76, 150, 34);
-            ctx.strokeRect(s.x - 55, s.y - 76, 150, 34);
+            ctx.fillRect(s.x - 65, s.y - 78, 170, 34);
+            ctx.strokeRect(s.x - 65, s.y - 78, 170, 34);
             ctx.fillStyle = '#451a03';
             ctx.font = 'bold 10px Fredoka, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(s.text, s.x + 20, s.y - 55);
+            ctx.fillText(s.text, s.x + 20, s.y - 57);
         });
 
-        // Draw Platforms & Mystery Blocks
+        // Draw Platforms, Mystery [?] Blocks & Romantic [♥] Blocks
         const pulse = Math.sin(Date.now() * 0.008) * 2;
         for (const p of gameState.platforms) {
             const py = p.y + (p.bounceY || 0);
@@ -887,7 +1212,6 @@
                 // Dirt Body
                 ctx.fillStyle = '#92400e';
                 ctx.fillRect(p.x, py + 14, p.w, p.h - 14);
-                // Pixel border
                 ctx.strokeStyle = '#451a03';
                 ctx.lineWidth = 3;
                 ctx.strokeRect(p.x, py, p.w, p.h);
@@ -897,28 +1221,41 @@
                 ctx.strokeStyle = '#431407';
                 ctx.lineWidth = 3;
                 ctx.strokeRect(p.x, py, p.w, p.h);
-                // Brick mortar lines
                 ctx.fillStyle = '#7c2d12';
                 ctx.fillRect(p.x, py + p.h / 2 - 2, p.w, 3);
                 ctx.fillRect(p.x + p.w / 2 - 2, py, 3, p.h / 2);
             } else if (p.type === 'mystery') {
-                // Glowing Gold Mystery Block [?]
+                // Gold Mystery Block [?]
                 ctx.fillStyle = '#facc15';
                 ctx.fillRect(p.x, py, p.w, p.h);
                 ctx.strokeStyle = '#713f12';
                 ctx.lineWidth = 3;
                 ctx.strokeRect(p.x, py, p.w, p.h);
-                // Corner rivets
                 ctx.fillStyle = '#a16207';
                 ctx.fillRect(p.x + 4, py + 4, 4, 4);
                 ctx.fillRect(p.x + p.w - 8, py + 4, 4, 4);
                 ctx.fillRect(p.x + 4, py + p.h - 8, 4, 4);
                 ctx.fillRect(p.x + p.w - 8, py + p.h - 8, 4, 4);
-                // Question Mark
                 ctx.fillStyle = '#713f12';
                 ctx.font = 'bold 18px "Press Start 2P", monospace';
                 ctx.textAlign = 'center';
-                ctx.fillText('?', p.x + p.w / 2 + 1, py + 28 + pulse * 0.4);
+                ctx.fillText('?', p.x + p.w / 2 + 1, py + 29 + pulse * 0.4);
+            } else if (p.type === 'romance') {
+                // Pink Romantic Mystery Block [♥]
+                ctx.fillStyle = '#f472b6';
+                ctx.fillRect(p.x, py, p.w, p.h);
+                ctx.strokeStyle = '#831843';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(p.x, py, p.w, p.h);
+                ctx.fillStyle = '#be185d';
+                ctx.fillRect(p.x + 4, py + 4, 4, 4);
+                ctx.fillRect(p.x + p.w - 8, py + 4, 4, 4);
+                ctx.fillRect(p.x + 4, py + p.h - 8, 4, 4);
+                ctx.fillRect(p.x + p.w - 8, py + p.h - 8, 4, 4);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 18px Fredoka, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('♥', p.x + p.w / 2, py + 28 + pulse * 0.4);
             } else if (p.type === 'used') {
                 ctx.fillStyle = '#64748b';
                 ctx.fillRect(p.x, py, p.w, p.h);
@@ -928,7 +1265,7 @@
                 ctx.fillStyle = '#334155';
                 ctx.font = 'bold 14px monospace';
                 ctx.textAlign = 'center';
-                ctx.fillText('✓', p.x + p.w / 2, py + 25);
+                ctx.fillText('✓', p.x + p.w / 2, py + 26);
             }
         }
 
@@ -959,17 +1296,14 @@
                 ctx.lineWidth = 2.5;
                 ctx.strokeRect(e.x, e.y - bounce, e.w, e.h + bounce);
             } else {
-                // Mushroom Cap
                 ctx.fillStyle = '#ef4444';
                 ctx.fillRect(e.x - 2, e.y - bounce, e.w + 4, 16);
                 ctx.fillStyle = '#fef2f2';
                 ctx.fillRect(e.x + 4, e.y - bounce + 4, 6, 6);
                 ctx.fillRect(e.x + 20, e.y - bounce + 4, 6, 6);
-                // Stem
                 ctx.fillStyle = '#fde68a';
                 ctx.fillRect(e.x + 4, e.y + 16 - bounce, e.w - 8, 14 + bounce);
             }
-            // Eyes
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(e.x + 6, e.y + 8 - bounce, 6, 6);
             ctx.fillRect(e.x + 19, e.y + 8 - bounce, 6, 6);
@@ -978,7 +1312,7 @@
             ctx.fillRect(e.x + 21, e.y + 10 - bounce, 3, 3);
         }
 
-        // Draw Protagonist: KUCING KOTAK (Cute Blocky Pixel Cat)
+        // Draw Protagonist: KUCING KOTAK
         drawKucingKotak();
 
         // Draw Particles
@@ -1123,11 +1457,24 @@
         keys.right = false;
         keys.jump = false;
 
+        updateHUD();
+
+        if (forcedType === 'SECRET_BONUS') {
+            const modal = document.getElementById('challenge-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('ch-feedback').classList.add('hidden');
+            showSecretBonusModal();
+            return;
+        }
+
         let chosen = forcedType;
         if (!chosen) {
-            const rollWA = Math.random() < 0.05;
-            if (rollWA && lastChallengeType !== 'WHATSAPP') {
+            const roll = Math.random();
+            if (roll < 0.08 && lastChallengeType !== 'WHATSAPP') {
                 chosen = 'WHATSAPP';
+            } else if (roll < 0.28 && lastChallengeType !== 'ROMANTIC_MSG') {
+                chosen = 'ROMANTIC_MSG';
             } else {
                 const pool = IN_GAME_CHALLENGES.filter(t => t !== lastChallengeType);
                 chosen = pool[Math.floor(Math.random() * pool.length)];
@@ -1150,10 +1497,13 @@
         sfx.winChallenge();
         gameState.coins += rewardCoins;
         gameState.challengesDone++;
-        
-        // Track consecutive successful challenges for the secret bonus!
-        if (typeof gameState.consecutiveStreak === 'undefined') gameState.consecutiveStreak = 0;
         gameState.consecutiveStreak++;
+
+        // Unlock the Secret 3x Streak Bonus if streak reaches 3!
+        const unlockedSecretNow = gameState.consecutiveStreak >= 3;
+        if (unlockedSecretNow) {
+            gameState.secretBonusUnlocked = true;
+        }
 
         updateHUD();
 
@@ -1162,11 +1512,10 @@
         fb.innerHTML = `🎉 ${message} (+${rewardCoins} 🪙 Koin!)`;
         fb.classList.remove('hidden');
 
-        // Check if player unlocked the secret 3x consecutive bonus!
-        const unlockedSecret = gameState.consecutiveStreak >= 3;
-        if (unlockedSecret) {
-            gameState.consecutiveStreak = 0; // reset streak
-            setTimeout(showSecretBonusModal, 900);
+        if (unlockedSecretNow) {
+            gameState.consecutiveStreak = 0;
+            updateHUD();
+            setTimeout(showSecretBonusModal, 850);
             return;
         }
 
@@ -1176,50 +1525,72 @@
             modal.classList.remove('flex');
             gameState.inChallenge = false;
             spawnFloatingText(cat.x, cat.y - 25, `+${rewardCoins} KOIN! 🏆`, '#4ade80');
-            showToast(`Misi Selesai! Streak (${gameState.consecutiveStreak}/3) Lanjut lari!`, '🏆');
-        }, 1150);
+            showToast(`Misi Selesai! Streak (${gameState.consecutiveStreak}/3) menuju Bonus PAP/VN!`, '🔥');
+        }, 1050);
     }
 
     function showSecretBonusModal() {
+        cleanupCurrentChallenge();
+        gameState.inChallenge = true;
+        gameState.secretBonusUnlocked = true;
+        updateHUD();
+
+        const modal = document.getElementById('challenge-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('ch-feedback').classList.add('hidden');
+
         const bodyEl = document.getElementById('ch-body');
         const titleEl = document.getElementById('ch-title');
         const tagEl = document.getElementById('ch-category-tag');
         const iconEl = document.getElementById('ch-badge-icon');
 
         iconEl.textContent = '💋';
-        tagEl.textContent = 'RAHASIA TERBUKA: 3X STREAK!';
-        titleEl.textContent = '🎁 Bonus Spesial: PAP atau VN Cium!';
+        tagEl.textContent = 'VIP SECRET BONUS: 3X STREAK TERBUKA!';
+        titleEl.textContent = '🎁 Hadiah Spesial: Minta PAP atau VN Cium!';
 
-        const waText = encodeURIComponent(
-            `Hai sayang! Aku baru aja berhasil nyelesaiin 3 challenge berturut-turut di game Neko-Block! 💖 Sesuai hadiah rahasianya, aku mau minta PAP / VN cium dong sekarang! 😘`
+        const waPapText = encodeURIComponent(
+            `Hai sayang! 🥰 Aku baru aja berhasil nyelesaiin 3 Challenge berturut-turut (3x Streak) di game Neko-Block buatan kamu! Sesuai tiket bonus rahasianya, aku mau klaim hadiah *PAP ganteng/lucu dari kamu sekarang* dong! 📸💖`
         );
-        const waSecretUrl = `https://wa.me/6289674037725?text=${waText}`;
+        const waVnText = encodeURIComponent(
+            `Hai sayang! 😘 Aku berhasil dapet Bonus Rahasia 3x Streak di game Neko-Block! Sekarang aku mau klaim hadiah *Voice Note (VN) Cium & bilang sayang* dari kamu! Ditunggu sekarang yaa mwah! 💋🎧`
+        );
+
+        const waPapUrl = `https://wa.me/6289674037725?text=${waPapText}`;
+        const waVnUrl = `https://wa.me/6289674037725?text=${waVnText}`;
 
         bodyEl.innerHTML = `
-            <div class="bg-gradient-to-r from-pink-900/60 to-purple-900/60 border-2 border-pink-400 rounded-2xl p-4 text-center mb-4 shadow-xl">
-                <div class="text-xs font-bold text-pink-300 uppercase tracking-widest mb-1">
-                    🔓 TOMBOL RAHASIA KETEMU!
+            <div class="bg-gradient-to-br from-pink-900/70 via-rose-900/60 to-amber-900/50 border-2 border-pink-400 rounded-2xl p-4 sm:p-5 text-center mb-4 shadow-2xl">
+                <div class="inline-block bg-amber-400 text-slate-950 font-extrabold text-[10px] px-3 py-0.5 rounded-full uppercase tracking-widest mb-2">
+                    🔓 JACKPOT CINTA 3X STREAK!
                 </div>
-                <p class="text-sm sm:text-base font-extrabold text-white leading-relaxed mb-3">
-                    Hebat banget! Kamu sukses menyelesaikan 3 tantangan berturut-turut tanpa jeda. Kamu berhak mendapatkan hadiah spesial dari cowokmu! 💋✨
+                <p class="text-sm sm:text-base font-extrabold text-white leading-relaxed mb-4">
+                    Selamat!! Karena kamu jago banget menyelesaikan tantangan, kamu berhak menagih hadiah spesial langsung ke WhatsApp cowokmu (<span class="text-amber-300">6289674037725</span>):
                 </p>
-                <a href="${waSecretUrl}" target="_blank" rel="noopener noreferrer"
-                   class="pixel-btn bg-pink-500 hover:bg-pink-400 text-slate-950 font-extrabold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-base w-full shadow-lg mb-2">
-                    <i class="fab fa-whatsapp text-xl"></i>
-                    Klaim PAP / VN Cium ke WA (+6289674037725)
-                </a>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                    <a href="${waPapUrl}" target="_blank" rel="noopener noreferrer"
+                       class="pixel-btn bg-pink-500 hover:bg-pink-400 text-slate-950 font-extrabold py-3.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm shadow-lg">
+                        <i class="fas fa-camera-retro text-lg"></i>
+                        <span>📸 Minta PAP Sekarang!</span>
+                    </a>
+                    <a href="${waVnUrl}" target="_blank" rel="noopener noreferrer"
+                       class="pixel-btn bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold py-3.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm shadow-lg">
+                        <i class="fas fa-microphone-alt text-lg"></i>
+                        <span>💋 Minta VN Cium Sekarang!</span>
+                    </a>
+                </div>
             </div>
-            <button id="btn-close-secret" class="pixel-btn w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-2.5 rounded-xl text-xs">
-                Lanjut Petualangan Meong 🐾
+            <button id="btn-close-secret" class="pixel-btn w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold py-3 rounded-xl text-xs sm:text-sm">
+                ✨ Simpan Tiket VIP & Lanjut Petualangan Meong 🐾
             </button>
         `;
 
         document.getElementById('btn-close-secret').onclick = () => {
-            const modal = document.getElementById('challenge-modal');
             modal.classList.add('hidden');
             modal.classList.remove('flex');
             gameState.inChallenge = false;
-            showToast("Bonus Rahasia Diklaim! Lanjut lari!", "💋");
+            showToast("Tiket VIP PAP/VN Cium tersimpan di bar atas!", "💋");
         };
     }
 
@@ -1318,7 +1689,7 @@
     }
 
     /********************************************************************
-     * 6AA. ROMANTIC MESSAGES & DIRECT WA FOR SPOUSE
+     * 6AA. EXPANDED ROMANTIC MESSAGES & LOVE LETTER VAULT (28 QUOTES)
      ********************************************************************/
     const ROMANTIC_QUOTES = [
         "Meskipun game ini tidak punya ujung dan tidak ada istana, tujuanku di dunia nyata cuma satu: Berhenti di hatimu dan nemenin kamu selamanya. 💖",
@@ -1326,44 +1697,128 @@
         "Kalau hidup ini seperti endless platformer, aku bersyukur banget rintangan tersulit di dunia jadi terasa gampang karena kamu selalu ada di garis 'finish' hidupku. 🌹",
         "Tiap kali aku nyundul balok [?] misterius, keajaiban terbaik yang aku dapatkan tetaplah senyuman kamu yang manis banget itu. 🥰",
         "Gak perlu peta atau istana megah untuk bahagia, cukup digandeng sama kamu aja duniaku udah lengkap rasanya. 💍",
-        "Tahu gak bedanya kamu sama balok misterius di game ini? Kalau balok isinya challenge acak, kalau kamu isinya kebahagiaan seumur hidup. 💘",
-        "Walaupun karakternya cuma kucing kotak yang loncat-loncat mulu, cintaku ke kamu itu bulat sempurna dan gak ada tandingannya. 😻",
+        "Tahu gak bedanya kamu sama balok misterius di game ini? Kalau balok isinya challenge acak, kalau kamu isinya kebahagiaan seumur hidup buatku. 💘",
+        "Walaupun karakternya cuma kucing kotak yang loncat-loncat mulu, cintaku ke kamu itu utuh, bulat sempurna, dan gak ada tandingannya. 😻",
         "Kalau rintangan game ini bisa dilewatin, rasa sayangku ke kamu malah gak bakal pernah ada habisnya. Terus jalan bareng aku ya? 🌸",
-        "Katanya hidup itu penuh teka-teki, tapi semenjak ada kamu, semua jawabannya cuma satu: Kamu milik aku selamanya. 💑",
-        "Capek lari-lari di game? Tenang, pelukan kamu selalu jadi tempat istirahat paling nyaman buat aku. ✨"
+        "Katanya hidup itu penuh teka-teki kayak catur, tapi semenjak ada kamu, semua langkahku cuma mengarah ke satu tujuan: Bahagiain kamu. 💑",
+        "Capek lari-lari di game? Tenang sayang, pelukan aku di dunia nyata selalu jadi tempat istirahat paling nyaman buat kamu kapan aja. ✨",
+        "Pembuat game ini sengaja nggak bikin istana di ujung jalan, soalnya rumah dan istana paling indah itu ya pas aku lagi sama kamu. 🏡💖",
+        "Seandainya setiap koin yang kamu kumpulin di game ini adalah rasa kangenku, mungkin layar HP kamu udah penuh dari tadi. 🪙🥰",
+        "Jangan takut jatuh ke jurang di game ini ya, karena di dunia nyata aku udah jatuh cinta sedalam-dalamnya sama kamu setiap hari. 💘",
+        "Kamu tahu kenapa langit di game ini bisa berubah dari pagi ke malam? Biar kamu tahu, mau pagi, sore, atau malam, pikiranku tetap cuma tentang kamu. 🌙✨",
+        "Kalau disuruh pilih menang catur lawan Grandmaster atau ngelihat kamu ketawa bahagia, aku bakal nyerahin semua bidakku demi senyum kamu. ♟️❤️",
+        "Makasih ya udah hadir di hidupku. Kamu itu kayak cheat code kebahagiaan yang bikin hari-hari biasa jadi luar biasa indah. 🎮🌷",
+        "Biarpun aku cuma bisa ngasih game pixel imut ini sekarang, doaku buat kebahagiaan kita berdua selalu serius dan nyata setiap waktu. 🤲💞",
+        "Kucing punya 9 nyawa, tapi aku cuma butuh 1 hidup aja asalkan dihabisinnya bareng kamu dari muda sampai tua nanti. 🐱👵👴",
+        "Setiap kali kamu loncat di game ini, inget ya kalau kamu selalu punya tempat paling spesial untuk mendarat di hatiku. 💓",
+        "Gak peduli seberapa jauh jarak meteran di game ini berjalan, rasa sayangku ke kamu selalu berkali-kali lipat lebih jauh dari angkanya. 🚀💝",
+        "Kalau kamu lagi badmood atau capek hari ini, inget ada seseorang yang bikin game ini khusus sambil senyum-senyum mikirin kamu. 😊🌸",
+        "Kamu itu ibarat bintang langka di level galaksi: paling bersinar, paling indah, dan selalu bikin aku terpana setiap kali mandangin kamu. 🌟🥰",
+        "Batu bata di game ini keras, tapi hatiku langsung meleleh setiap kali denger suara atau baca chat dari kamu. 💌🫠",
+        "Jangan pernah ngerasa sendirian ya sayang, seperti bayangan kucing kecil ini, doaku dan cintaku selalu nemenin langkah kamu. 🐾💖",
+        "Kalau ada piala untuk pasangan paling menggemaskan, sabar, dan ngangenin sedunia, pialanya udah pasti aku kasih ke kamu sekarang juga! 🏆😘",
+        "Aku sengaja naro pesan rahasia ini di dalam balok, supaya pas kamu buka, kamu sadar betapa berharganya kamu buatku. 🎁❤️",
+        "Satu senyuman kamu hari ini nilainya lebih berharga daripada sejuta koin emas di game mana pun. Jangan lupa senyum ya cantik! 😊✨",
+        "Mau seribu challenge lagi yang muncul di layar, challenge terfavoritku tetap satu: Mencintai dan jagain kamu setiap hari. I love you! 💍💖"
     ];
 
     function renderRomanticMessage(container) {
-        const quote = ROMANTIC_QUOTES[Math.floor(Math.random() * ROMANTIC_QUOTES.length)];
+        const quoteIdx = Math.floor(Math.random() * ROMANTIC_QUOTES.length);
+        gameState.unlockedQuotes.add(quoteIdx);
+        updateHUD();
+
+        const quote = ROMANTIC_QUOTES[quoteIdx];
         const waText = encodeURIComponent(
-            `Hai sayang! 💖 Tadi aku lagi main game Neko-Block buatan pacarku, terus pas nyundul balok misterius [?] tiba-tiba keluar pesan romantis ini buat kamu:\n\n*"${quote}"*\n\nI love you! 🥰`
+            `Hai sayang! 💖 Aku lagi main game Neko-Block buatan kamu, terus pas nyundul balok misterius [♥] aku nemu surat cinta ini:\n\n*"${quote}"*\n\nMakasih yaa udah bikin ini, I love you! 🥰`
         );
-        const waShareUrl = `https://api.whatsapp.com/send?text=${waText}`;
+        const waDirectUrl = `https://wa.me/6289674037725?text=${waText}`;
 
         container.innerHTML = `
-            <div class="bg-pink-950/40 border-2 border-pink-400/80 rounded-2xl p-4 text-center mb-4 shadow-lg">
-                <div class="text-xs font-bold text-pink-300 uppercase tracking-widest mb-2">
-                    💌 PESAN DARI SANG PEMBUAT GAME HATI KAMU
+            <div class="bg-gradient-to-br from-pink-950/70 to-rose-900/50 border-2 border-pink-400 rounded-2xl p-4 sm:p-5 text-center mb-4 shadow-xl relative">
+                <div class="text-[11px] font-bold text-pink-300 uppercase tracking-widest mb-2">
+                    💌 SURAT CINTA #${quoteIdx + 1} DARI PEMBUAT GAME
                 </div>
-                <p class="text-sm sm:text-base font-extrabold text-white leading-relaxed italic">
+                <p id="current-romance-quote" class="text-sm sm:text-base font-extrabold text-white leading-relaxed italic mb-3">
                     "${quote}"
                 </p>
+                <div class="flex items-center justify-center gap-2">
+                    <button id="btn-next-romance" class="pixel-btn bg-slate-800 hover:bg-slate-700 text-pink-300 text-xs px-3 py-1 rounded-xl">
+                        🔄 Baca Gombalan Lainnya
+                    </button>
+                    <button id="btn-open-vault-inline" class="pixel-btn bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-3 py-1 rounded-xl">
+                        📚 Lihat Koleksi (${gameState.unlockedQuotes.size}/${ROMANTIC_QUOTES.length})
+                    </button>
+                </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <a href="${waShareUrl}" target="_blank" rel="noopener noreferrer"
+                <a id="link-wa-romance" href="${waDirectUrl}" target="_blank" rel="noopener noreferrer"
                    class="pixel-btn bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm">
                     <i class="fab fa-whatsapp text-lg"></i>
-                    Kirim Pesan Ini ke WA Pacar
+                    Teruskan ke WA Cowokmu
                 </a>
                 <button id="btn-claim-romance" class="pixel-btn bg-pink-500 hover:bg-pink-400 text-slate-950 font-extrabold py-3 px-3 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm">
-                    ✨ Ambil Koin & Lanjut Main
+                    ✨ Simpan di Hati & Lanjut (+20 🪙)
                 </button>
             </div>
         `;
 
-        document.getElementById('btn-claim-romance').onclick = () => {
-            completeChallengeSuccess(20, "Pesan Romantis Tersimpan di Hati! Lanjut Meong!");
+        document.getElementById('btn-next-romance').onclick = () => {
+            sfx.romanceHit();
+            renderRomanticMessage(container);
         };
+
+        document.getElementById('btn-open-vault-inline').onclick = () => {
+            sfx.click();
+            openLoveVaultModal();
+        };
+
+        document.getElementById('btn-claim-romance').onclick = () => {
+            completeChallengeSuccess(20, "Surat Cinta Tersimpan di Brankas Hati!");
+        };
+    }
+
+    function openLoveVaultModal() {
+        const modal = document.getElementById('vault-modal');
+        const listEl = document.getElementById('vault-list');
+        const statEl = document.getElementById('vault-unlocked-stat');
+
+        statEl.textContent = `${gameState.unlockedQuotes.size} / ${ROMANTIC_QUOTES.length}`;
+        listEl.innerHTML = '';
+
+        ROMANTIC_QUOTES.forEach((q, idx) => {
+            const isUnlocked = gameState.unlockedQuotes.has(idx);
+            const item = document.createElement('div');
+            item.className = `p-3.5 rounded-2xl border-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
+                isUnlocked
+                    ? 'bg-slate-800/90 border-pink-400/50 text-white'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-500'
+            }`;
+
+            if (isUnlocked) {
+                const waText = encodeURIComponent(
+                    `Hai sayang! 💖 Aku suka banget sama pesan romantis #${idx + 1} di game Neko-Block buatan kamu:\n\n*"${q}"*\n\nI love you! 🥰`
+                );
+                item.innerHTML = `
+                    <div class="text-xs sm:text-sm leading-relaxed">
+                        <span class="text-pink-400 font-bold mr-1">#${idx + 1}</span> "${q}"
+                    </div>
+                    <a href="https://wa.me/6289674037725?text=${waText}" target="_blank" rel="noopener noreferrer"
+                       class="pixel-btn shrink-0 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1">
+                        <i class="fab fa-whatsapp"></i> Kirim WA
+                    </a>
+                `;
+            } else {
+                item.innerHTML = `
+                    <div class="text-xs italic flex items-center gap-2">
+                        <span>🔒 Surat Cinta #${idx + 1} masih terkunci. Sundul balok [♥] di game atau klik tombol buka di atas!</span>
+                    </div>
+                `;
+            }
+            listEl.appendChild(item);
+        });
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
 
     /********************************************************************
@@ -1728,7 +2183,7 @@
 
         btnVerifyCode.addEventListener('click', () => {
             const val = codeInput.value.trim().toUpperCase();
-            const validCodes = ['MEONG', 'LOLOS', 'MANTAP', '1234', secretSessionCode];
+            const validCodes = ['MEONG', 'LOLOS', 'MANTAP', 'SAYANG', 'CINTA', '1234', secretSessionCode];
             if (validCodes.includes(val)) {
                 completeChallengeSuccess(35, "Kode Rahasia Valid! Misi WA Selesai!");
             } else {
@@ -2726,16 +3181,113 @@
     document.getElementById('btn-start-game').addEventListener('click', () => {
         sfx.init();
         sfx.mysteryHit();
+        sfx.startBGM();
         document.getElementById('intro-modal').classList.add('hidden');
         gameState.paused = false;
-        showToast("Sundul Balok [?] di atas untuk mulai Challenge!", "🐾");
+        showToast("Sundul Balok [?] atau [♥] di atas untuk Kejutan!", "🐾");
     });
 
-    // Sound Toggle
+    // BGM Toggle Button
+    document.getElementById('btn-bgm').addEventListener('click', () => {
+        sfx.toggleBGM();
+    });
+
+    // Sound SFX Toggle
     document.getElementById('btn-sound').addEventListener('click', () => {
         sfx.enabled = !sfx.enabled;
         const icon = document.getElementById('sound-icon');
         icon.className = sfx.enabled ? 'fas fa-volume-up' : 'fas fa-volume-mute text-rose-400';
+    });
+
+    // CRT Scanline Filter Toggle
+    document.getElementById('btn-crt').addEventListener('click', () => {
+        sfx.click();
+        const crt = document.getElementById('crt-layer');
+        crt.classList.toggle('hidden');
+    });
+
+    // Fullscreen Toggle
+    document.getElementById('btn-fullscreen').addEventListener('click', () => {
+        sfx.click();
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen().catch(() => {});
+        }
+    });
+
+    // Love Letter Vault Modal Controls
+    document.getElementById('btn-love-vault').addEventListener('click', () => {
+        sfx.click();
+        openLoveVaultModal();
+    });
+    document.getElementById('btn-close-vault').addEventListener('click', () => {
+        sfx.click();
+        const modal = document.getElementById('vault-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    });
+    document.getElementById('btn-unlock-random-quote').addEventListener('click', () => {
+        const locked = [];
+        for (let i = 0; i < ROMANTIC_QUOTES.length; i++) {
+            if (!gameState.unlockedQuotes.has(i)) locked.push(i);
+        }
+        if (locked.length > 0) {
+            const pick = locked[Math.floor(Math.random() * locked.length)];
+            gameState.unlockedQuotes.add(pick);
+            sfx.romanceHit();
+            updateHUD();
+            openLoveVaultModal();
+            showToast(`Surat Cinta #${pick + 1} Terbuka! 💌`, '💖');
+        } else {
+            sfx.coin();
+            showToast("Semua 28 Surat Cinta sudah terbuka! 💖", "✨");
+        }
+    });
+
+    // Streak HUD Button & VIP Bonus Button
+    document.getElementById('btn-streak-hud').addEventListener('click', () => {
+        sfx.click();
+        if (gameState.secretBonusUnlocked) {
+            showSecretBonusModal();
+        } else {
+            showToast(`Selesaikan ${3 - gameState.consecutiveStreak} Challenge lagi untuk klaim PAP / VN Cium!`, '🔥');
+        }
+    });
+    document.getElementById('btn-vip-bonus').addEventListener('click', () => {
+        sfx.romanceHit();
+        showSecretBonusModal();
+    });
+
+    // Hidden Easter Egg Paw Button in top-right corner of canvas (3 clicks unlocks VIP PAP/VN!)
+    let easterEggClicks = 0;
+    document.getElementById('btn-hidden-easter-egg').addEventListener('click', () => {
+        easterEggClicks++;
+        sfx.click();
+        if (easterEggClicks >= 3) {
+            easterEggClicks = 0;
+            sfx.romanceHit();
+            showSecretBonusModal();
+        } else {
+            showToast(`🐾 Rahasia Tersembunyi (${easterEggClicks}/3)...`, '💖');
+        }
+    });
+
+    // Quick Respawn Button
+    const quickRespawnBtn = document.getElementById('btn-quick-respawn');
+    if (quickRespawnBtn) {
+        quickRespawnBtn.addEventListener('click', () => {
+            respawnCatSafely();
+        });
+    }
+
+    // Close Challenge Modal Button
+    document.getElementById('btn-close-challenge-modal').addEventListener('click', () => {
+        cleanupCurrentChallenge();
+        const modal = document.getElementById('challenge-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        gameState.inChallenge = false;
     });
 
     // Reroll Challenge Button inside Modal
@@ -2760,7 +3312,7 @@
 
     window.onload = function () {
         resizeCanvas();
-        cat.y = getGroundY() - cat.h;
+        cat.y = WORLD_GROUND_Y - cat.h;
         initScenery();
         generateWorldChunk();
         updateHUD();
